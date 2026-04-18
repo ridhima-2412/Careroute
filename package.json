@@ -8,7 +8,8 @@
     "start": "npm run backend",
     "backend": "node backend/server.js",
     "backend:5001": "set PORT=5001&& node backend/server.js",
-    "frontend": "node -e \"console.log('Frontend dev server is not scaffolded yet. Current repo contains React component source files only.')\""
+    "frontend": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build"
   },
   "dependencies": {
     "cors": "^2.8.5",
