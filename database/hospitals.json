@@ -1,1 +1,28 @@
-
+[
+  {
+    "name": "City Hospital",
+    "icu_total": 20,
+    "icu_available": 5,
+    "ventilators_total": 10,
+    "ventilators_available": 3,
+    "specialists": {
+      "cardiologist": 2,
+      "neurologist": 1,
+      "trauma": 3
+    },
+    "status": "available"
+  },
+  {
+    "name": "Metro Hospital",
+    "icu_total": 15,
+    "icu_available": 2,
+    "ventilators_total": 8,
+    "ventilators_available": 1,
+    "specialists": {
+      "cardiologist": 1,
+      "neurologist": 2,
+      "trauma": 1
+    },
+    "status": "available"
+  }
+]
