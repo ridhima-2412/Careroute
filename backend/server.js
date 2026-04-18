@@ -31,6 +31,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.use('/api', router);
 app.use('/', router);
 
 app.use((req, res) => {

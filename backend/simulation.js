@@ -196,6 +196,18 @@ function calculateAcceptanceProbability({ hospital, severity, requiredSpecialty,
   return clamp(0.45 + specialtyBonus + capacityBonus + severityPenalty - travelPenalty, 0.1, 0.95);
 }
 
+function estimateRequiredResources(severity) {
+  if (severity === 'high') {
+    return { icuBeds: 1, ventilators: 1 };
+  }
+
+  if (severity === 'medium') {
+    return { icuBeds: 1, ventilators: 0 };
+  }
+
+  return { icuBeds: 0, ventilators: 0 };
+}
+
 function createSimulationEngine(initialHospitals, communicationBus = createCommunicationBus()) {
   const hospitalState = initialHospitals.map((hospital, index) => ({
     id: hospital.id ?? `hospital-${index + 1}`,
@@ -213,6 +225,26 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
       ...hospital,
       predictedAvailability: predictBedAvailability(hospital),
     }));
+  }
+
+  function scoreHospital({ hospitalId, severity, requiredSpecialty, location }) {
+    const hospital = hospitalState.find((item) => String(item.id) === String(hospitalId));
+
+    if (!hospital) {
+      const error = new Error(`Hospital with id "${hospitalId}" was not found.`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return {
+      hospital,
+      ...calculateRecommendationScore({
+        hospital,
+        severity,
+        requiredSpecialty,
+        location,
+      }),
+    };
   }
 
   function recommendHospital(payload) {
@@ -284,7 +316,7 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
 
   function alertHospitals({ hospitalIds, severity, requiredSpecialty, location }) {
     const alerts = hospitalState
-      .filter((hospital) => hospitalIds.includes(hospital.id))
+      .filter((hospital) => hospitalIds.some((id) => String(id) === String(hospital.id)))
       .map((hospital) => {
         const score = calculateRecommendationScore({
           hospital,
@@ -317,6 +349,25 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
           accepted ? COMMUNICATION_EVENTS.HOSPITAL_ACCEPTED : COMMUNICATION_EVENTS.HOSPITAL_DECLINED,
           response
         );
+
+        if (accepted) {
+          const requiredResources = estimateRequiredResources(severity);
+          hospital.icuBeds = clamp(hospital.icuBeds - requiredResources.icuBeds, 0, hospital.totalBeds);
+          hospital.ventilators = clamp(
+            hospital.ventilators - requiredResources.ventilators,
+            0,
+            hospital.totalVentilators
+          );
+          hospital.lastUpdatedAt = new Date().toISOString();
+
+          communicationBus.emit(COMMUNICATION_EVENTS.BED_STATUS_CHANGED, {
+            hospitalId: hospital.id,
+            hospitalName: hospital.name,
+            icuBeds: hospital.icuBeds,
+            ventilators: hospital.ventilators,
+            updatedAt: hospital.lastUpdatedAt,
+          });
+        }
 
         return response;
       });
@@ -356,6 +407,7 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
   return {
     getHospitals,
     recommendHospital,
+    scoreHospital,
     sendVitals,
     alertHospitals,
     startBackgroundSimulation,

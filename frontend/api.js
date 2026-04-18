@@ -2,7 +2,7 @@
 // Connects to Node.js backend (or uses mock data in prototype mode)
 
 const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
-const MOCK_MODE = process.env.REACT_APP_MOCK === "true" || true; // Default to mock for prototype
+const MOCK_MODE = process.env.REACT_APP_MOCK === "true";
 
 // ──────────────────────────────────────────
 // Mock Data
@@ -115,10 +115,25 @@ export async function getHospitalRecommendations(params = {}) {
     await delay(300);
     return { success: true, hospitals: MOCK_HOSPITALS };
   }
-  return apiFetch("/hospitals/recommend", {
+  const response = await apiFetch("/hospitals/recommend", {
     method: "POST",
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      severity: params.severity,
+      specialty: params.specialty || params.requiredSpecialty,
+      location: params.location || {
+        lat: params.lat,
+        lng: params.lng,
+      },
+      patientVitals: params.patientVitals || params.vitals,
+    }),
   });
+  return {
+    success: response.success,
+    recommendation: response.recommendation,
+    hospitals: response.hospitals || [],
+    severity: response.severity,
+    specialty: response.specialty,
+  };
 }
 
 /**
@@ -132,7 +147,10 @@ export async function sendPreAlert(hospitalId, patientData) {
   }
   return apiFetch(`/hospitals/${hospitalId}/prealert`, {
     method: "POST",
-    body: JSON.stringify(patientData),
+    body: JSON.stringify({
+      ...patientData,
+      vitals: patientData.vitals || patientData.patientVitals || patientData,
+    }),
   });
 }
 
@@ -207,7 +225,11 @@ export async function getRoute(origin, destinationId) {
   }
   return apiFetch("/route/optimize", {
     method: "POST",
-    body: JSON.stringify({ origin, destinationId }),
+    body: JSON.stringify({
+      origin,
+      destinationId,
+      location: origin,
+    }),
   });
 }
 
