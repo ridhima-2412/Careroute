@@ -1,16 +1,8 @@
 // api.js — Frontend API service layer
 // Connects to Node.js backend (or uses mock data in prototype mode)
 
-// Supports both Vite (import.meta.env) and older process.env-based setups.
-const ENV =
-  typeof import.meta !== "undefined" && import.meta.env
-    ? import.meta.env
-    : typeof process !== "undefined"
-      ? process.env
-      : {};
-
-const BASE_URL = ENV.VITE_API_URL || ENV.REACT_APP_API_URL || "/api";
-const MOCK_MODE = ENV.VITE_MOCK === "true" || ENV.REACT_APP_MOCK === "true";
+const BASE_URL = "http://localhost:5000/api";
+const MOCK_MODE = false;
 
 // ──────────────────────────────────────────
 // Mock Data

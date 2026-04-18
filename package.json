@@ -8,7 +8,7 @@
     "start": "npm run backend",
     "backend": "node backend/server.js",
     "backend:5001": "set PORT=5001&& node backend/server.js",
-    "frontend": "npm --prefix frontend run dev",
+    "frontend": "npm --prefix frontend start",
     "frontend:build": "npm --prefix frontend run build"
   },
   "dependencies": {
