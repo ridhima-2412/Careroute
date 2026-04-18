@@ -68,15 +68,28 @@ simulationEngine.communicationBus.on(COMMUNICATION_EVENTS.BED_STATUS_CHANGED, (p
 });
 
 let simulationTimer = null;
+let server = null;
 
 if (require.main === module) {
   simulationTimer = simulationEngine.startBackgroundSimulation();
-  app.listen(PORT, () => {
+  server = app.listen(PORT, () => {
     console.log(`Smart Ambulance backend running on port ${PORT}`);
+  });
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(
+        `Port ${PORT} is already in use. Stop the existing process or run "npm run backend:5001".`
+      );
+      process.exit(1);
+    }
+
+    throw error;
   });
 }
 
 module.exports = {
   app,
+  server,
   simulationTimer,
 };

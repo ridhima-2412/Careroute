@@ -5,7 +5,10 @@
   "description": "Backend and frontend prototype for hospital recommendation and ambulance coordination.",
   "main": "backend/server.js",
   "scripts": {
-    "start": "node backend/server.js"
+    "start": "npm run backend",
+    "backend": "node backend/server.js",
+    "backend:5001": "set PORT=5001&& node backend/server.js",
+    "frontend": "node -e \"console.log('Frontend dev server is not scaffolded yet. Current repo contains React component source files only.')\""
   },
   "dependencies": {
     "cors": "^2.8.5",
