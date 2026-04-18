@@ -24,5 +24,83 @@
       "trauma": 1
     },
     "status": "available"
+  },
+  {
+    "name": "AIIMS Trauma Centre",
+    "icu_total": 30,
+    "icu_available": 7,
+    "ventilators_total": 18,
+    "ventilators_available": 6,
+    "specialists": {
+      "cardiologist": 3,
+      "neurologist": 2,
+      "trauma": 5
+    },
+    "status": "available"
+  },
+  {
+    "name": "Safdarjung Hospital",
+    "icu_total": 24,
+    "icu_available": 4,
+    "ventilators_total": 12,
+    "ventilators_available": 2,
+    "specialists": {
+      "cardiologist": 2,
+      "neurologist": 1,
+      "trauma": 4
+    },
+    "status": "available"
+  },
+  {
+    "name": "RML Hospital",
+    "icu_total": 22,
+    "icu_available": 6,
+    "ventilators_total": 14,
+    "ventilators_available": 5,
+    "specialists": {
+      "cardiologist": 2,
+      "neurologist": 3,
+      "trauma": 2
+    },
+    "status": "available"
+  },
+  {
+    "name": "GTB Hospital",
+    "icu_total": 18,
+    "icu_available": 1,
+    "ventilators_total": 10,
+    "ventilators_available": 1,
+    "specialists": {
+      "cardiologist": 1,
+      "neurologist": 1,
+      "trauma": 2
+    },
+    "status": "limited"
+  },
+  {
+    "name": "Apollo Emergency Centre",
+    "icu_total": 26,
+    "icu_available": 8,
+    "ventilators_total": 16,
+    "ventilators_available": 7,
+    "specialists": {
+      "cardiologist": 4,
+      "neurologist": 2,
+      "trauma": 3
+    },
+    "status": "available"
+  },
+  {
+    "name": "Fortis Critical Care",
+    "icu_total": 28,
+    "icu_available": 3,
+    "ventilators_total": 20,
+    "ventilators_available": 4,
+    "specialists": {
+      "cardiologist": 3,
+      "neurologist": 3,
+      "trauma": 2
+    },
+    "status": "available"
   }
 ]
