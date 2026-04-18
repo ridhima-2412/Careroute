@@ -32,10 +32,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api', router);
+app.use('/', router);
 
-app.get('/', (req, res) => {
-  res.send('Smart Ambulance Backend Running 🚀');
-});
 app.use((req, res) => {
   res.status(404).json({
     error: `Route ${req.method} ${req.originalUrl} not found.`,
