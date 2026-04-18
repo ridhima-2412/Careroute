@@ -226,6 +226,8 @@ function getWaitTimeLabel(prediction) {
 }
 
 function formatHospitalForFrontend(hospital, scoring = {}) {
+  const travelTimeMinutes = scoring.travelTimeMinutes ?? scoring.estimatedTravelTimeMinutes;
+
   return {
     id: hospital.id,
     name: hospital.name,
@@ -233,12 +235,11 @@ function formatHospitalForFrontend(hospital, scoring = {}) {
     lng: hospital.location?.lng,
     location: hospital.location,
     distance: scoring.distanceKm != null ? `${scoring.distanceKm.toFixed(1)} km` : 'N/A',
-    eta:
-      scoring.travelTimeMinutes != null ? `${Math.max(1, Math.round(scoring.travelTimeMinutes))} min` : 'N/A',
+    eta: travelTimeMinutes != null ? `${Math.max(1, Math.round(travelTimeMinutes))} min` : 'N/A',
     icuBeds: hospital.icuBeds,
     ventilators: hospital.ventilators,
     specialists: hospital.specialties.map(toTitleCase),
-    score: scoring.combinedScore ?? scoring.totalScore ?? 0,
+    score: scoring.displayScore ?? Math.max(0, Math.round(scoring.totalScore ?? 0)),
     status: getStatusLabel(hospital.status),
     traffic: getTrafficLabel(scoring.trafficMultiplier || 1),
     waitTime: getWaitTimeLabel(scoring.prediction || hospital.predictedAvailability),
@@ -288,7 +289,15 @@ function buildRecommendationResponse(payload) {
         },
       };
     })
-    .sort((left, right) => right.score - left.score);
+    .sort((left, right) => right.scoreBreakdown.combinedScore - left.scoreBreakdown.combinedScore);
+
+  const highestCombinedScore = rankedHospitals[0]?.scoreBreakdown?.combinedScore || 1;
+  rankedHospitals.forEach((hospital) => {
+    hospital.score = Math.max(
+      1,
+      Math.min(100, Math.round((hospital.scoreBreakdown.combinedScore / highestCombinedScore) * 100))
+    );
+  });
 
   return {
     success: true,

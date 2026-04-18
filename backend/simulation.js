@@ -285,7 +285,11 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
         severityResourceScore: item.severityResourceScore,
         bedAvailabilityScore: item.bedAvailabilityScore,
         distanceScore: item.distanceScore,
+        distanceKm: item.distanceKm,
         estimatedTravelTimeMinutes: item.travelTimeMinutes,
+        trafficMultiplier: item.trafficMultiplier,
+        prediction: item.prediction,
+        reason: item.reason,
       })),
     };
   }

@@ -21,7 +21,7 @@ function statusColor(s) {
   return s === "AVAILABLE" ? "#06d6a0" : s === "LIMITED" ? "#ffd166" : "#ff4d6d";
 }
 
-export default function MapView({ selectedHospital }) {
+export default function MapView({ selectedHospital, hospitals = HOSPITALS, route }) {
   const canvasRef = useRef(null);
   const [ambulancePos, setAmbulancePos] = useState(0);
   const [hoveredHospital, setHoveredHospital] = useState(null);
@@ -76,7 +76,7 @@ export default function MapView({ selectedHospital }) {
     });
 
     // Route to best hospital (animated dashes)
-    const dest = selectedHospital || HOSPITALS[0];
+    const dest = selectedHospital || hospitals[0];
     const amb = AMBULANCE_PATH[ambulancePos];
     ctx.setLineDash([8, 6]);
     ctx.lineDashOffset = -tick * 2;
@@ -91,7 +91,7 @@ export default function MapView({ selectedHospital }) {
     ctx.setLineDash([]);
 
     // Hospitals
-    HOSPITALS.forEach((h) => {
+    hospitals.forEach((h) => {
       const hx = h.x * W;
       const hy = h.y * H;
       const isSelected = selectedHospital?.id === h.id || (!selectedHospital && h.id === 1);
@@ -166,7 +166,7 @@ export default function MapView({ selectedHospital }) {
           <div style={styles.label}>LIVE ROUTE MAP</div>
           <div style={styles.title}>Real-Time Navigation</div>
         </div>
-        <div style={styles.etaBadge}>ETA: <strong>4 min</strong></div>
+        <div style={styles.etaBadge}>ETA: <strong>{route?.eta || selectedHospital?.eta || "4 min"}</strong></div>
       </div>
 
       <div style={styles.mapWrap}>
@@ -187,8 +187,8 @@ export default function MapView({ selectedHospital }) {
 
       <div style={styles.routeInfo}>
         <div style={styles.routeItem}><span style={styles.routeDot}>📍</span> Current Location: ITO, Delhi</div>
-        <div style={styles.routeItem}><span style={styles.routeDot}>🏥</span> Destination: AIIMS Trauma Centre</div>
-        <div style={styles.routeItem}><span style={styles.routeDot}>🚦</span> Traffic: Low — Optimal route active</div>
+        <div style={styles.routeItem}><span style={styles.routeDot}>🏥</span> Destination: {selectedHospital?.name || hospitals[0]?.name || "Awaiting recommendation"}</div>
+        <div style={styles.routeItem}><span style={styles.routeDot}>🚦</span> Traffic: {route?.trafficLevel || selectedHospital?.traffic || "Low"} — Optimal route active</div>
       </div>
     </div>
   );

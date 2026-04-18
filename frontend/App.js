@@ -3,6 +3,17 @@ import Vitals from "./components/Vitals";
 import HospitalList from "./components/HospitalList";
 import MapView from "./components/MapView";
 import Buttons from "./components/Buttons";
+import { broadcastSOS, getHospitalRecommendations, getRoute, getSeverityScore, sendPreAlert, submitVitals } from "./api";
+
+const CASE_ID = "EMRG-2024-441";
+const AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
+
+function inferSpecialty(vitals) {
+  if (!vitals) return "general";
+  if (vitals.heartRate > 130 || vitals.spo2 < 92) return "cardiology";
+  if (vitals.gcs < 10) return "trauma";
+  return "general";
+}
 
 function TopBar() {
   const [time, setTime] = useState(new Date());
@@ -50,13 +61,13 @@ function TopBar() {
   );
 }
 
-function SurvivalBadge() {
+function SurvivalBadge({ survivalProbability = 87 }) {
   return (
     <div style={survivalStyles.container}>
       <div style={survivalStyles.label}>SURVIVAL PROBABILITY</div>
-      <div style={survivalStyles.value}>87<span style={{ fontSize: 20 }}>%</span></div>
+      <div style={survivalStyles.value}>{survivalProbability}<span style={{ fontSize: 20 }}>%</span></div>
       <div style={survivalStyles.bar}>
-        <div style={survivalStyles.fill} />
+        <div style={{ ...survivalStyles.fill, width: `${survivalProbability}%` }} />
       </div>
       <div style={survivalStyles.sub}>Based on current vitals & hospital match</div>
     </div>
@@ -79,6 +90,115 @@ function CaseSummary() {
 
 export default function App() {
   const [selectedHospital, setSelectedHospital] = useState(null);
+  const [hospitals, setHospitals] = useState([]);
+  const [latestVitals, setLatestVitals] = useState(null);
+  const [severity, setSeverity] = useState("STABLE");
+  const [survivalProbability, setSurvivalProbability] = useState(87);
+  const [route, setRoute] = useState(null);
+  const [alertingHospitalId, setAlertingHospitalId] = useState(null);
+
+  useEffect(() => {
+    if (!latestVitals) {
+      return;
+    }
+
+    let active = true;
+
+    async function syncCase() {
+      try {
+        const severityResponse = await getSeverityScore(latestVitals);
+        const specialty = inferSpecialty(latestVitals);
+
+        if (!active) return;
+        setSeverity(severityResponse.severity);
+        setSurvivalProbability(severityResponse.survivalProbability);
+
+        await submitVitals(CASE_ID, latestVitals);
+
+        const recommendationResponse = await getHospitalRecommendations({
+          severity: severityResponse.severity,
+          specialty,
+          location: AMBULANCE_LOCATION,
+          patientVitals: latestVitals,
+        });
+
+        if (!active) return;
+        setHospitals(recommendationResponse.hospitals || []);
+
+        const preferredHospital =
+          recommendationResponse.recommendation ||
+          recommendationResponse.hospitals?.[0] ||
+          null;
+
+        setSelectedHospital((current) => current || preferredHospital);
+
+        if (preferredHospital?.id) {
+          const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
+          if (!active) return;
+          setRoute(routeResponse.route);
+        }
+      } catch (error) {
+        console.error("Failed to sync case data", error);
+      }
+    }
+
+    syncCase();
+
+    return () => {
+      active = false;
+    };
+  }, [latestVitals]);
+
+  async function handleAlertHospital(hospital) {
+    try {
+      setAlertingHospitalId(hospital.id);
+      return await sendPreAlert(hospital.id, {
+        caseId: CASE_ID,
+        severity,
+        specialty: inferSpecialty(latestVitals),
+        location: AMBULANCE_LOCATION,
+        vitals: latestVitals,
+      });
+    } finally {
+      setAlertingHospitalId(null);
+    }
+  }
+
+  async function handleViewRoute(hospital) {
+    setSelectedHospital(hospital);
+    const routeResponse = await getRoute(AMBULANCE_LOCATION, hospital.id);
+    setRoute(routeResponse.route);
+  }
+
+  async function handleAction(actionId) {
+    if (actionId === "prealert" && selectedHospital) {
+      const response = await handleAlertHospital(selectedHospital);
+      return { message: response.message || `Pre-alert sent to ${selectedHospital.name}` };
+    }
+
+    if (actionId === "sos") {
+      const response = await broadcastSOS({
+        severity,
+        specialty: inferSpecialty(latestVitals),
+        location: AMBULANCE_LOCATION,
+        vitals: latestVitals,
+      });
+      return { message: response.message };
+    }
+
+    if (actionId === "route" && selectedHospital) {
+      const routeResponse = await getRoute(AMBULANCE_LOCATION, selectedHospital.id);
+      setRoute(routeResponse.route);
+      return { message: `Route updated for ${selectedHospital.name} (${routeResponse.route.eta})` };
+    }
+
+    if (actionId === "escalate") {
+      setSeverity("CRITICAL");
+      return { message: "Case severity escalated locally for dispatch review" };
+    }
+
+    return null;
+  }
 
   return (
     <div style={appStyles.root}>
@@ -87,22 +207,28 @@ export default function App() {
       <div style={appStyles.main}>
         {/* Left Column */}
         <div style={appStyles.leftCol}>
-          <Vitals patientName="Patient #EMRG-441 — Ramesh K." />
+          <Vitals patientName="Patient #EMRG-441 — Ramesh K." onVitalsChange={setLatestVitals} />
           <div style={{ display: "flex", gap: 14 }}>
-            <SurvivalBadge />
+            <SurvivalBadge survivalProbability={survivalProbability} />
             <CaseSummary />
           </div>
         </div>
 
         {/* Center Column */}
         <div style={appStyles.centerCol}>
-          <MapView selectedHospital={selectedHospital} />
-          <Buttons />
+          <MapView selectedHospital={selectedHospital} hospitals={hospitals} route={route} />
+          <Buttons onAction={handleAction} />
         </div>
 
         {/* Right Column */}
         <div style={appStyles.rightCol}>
-          <HospitalList onSelect={setSelectedHospital} />
+          <HospitalList
+            hospitals={hospitals}
+            onSelect={setSelectedHospital}
+            onAlertHospital={handleAlertHospital}
+            onViewRoute={handleViewRoute}
+            alertingHospitalId={alertingHospitalId}
+          />
         </div>
       </div>
 
