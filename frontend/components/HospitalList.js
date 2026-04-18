@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 const mockHospitals = [
   {
@@ -71,17 +71,21 @@ function ScoreBar({ score }) {
   );
 }
 
-export default function HospitalList({ onSelect }) {
+export default function HospitalList({ hospitals = mockHospitals, onSelect, onAlertHospital, onViewRoute, alertingHospitalId }) {
   const [alertedId, setAlertedId] = useState(1);
-  const [alerting, setAlerting] = useState(null);
+  const sorted = useMemo(() => [...hospitals].sort((a, b) => b.score - a.score), [hospitals]);
 
-  const sorted = [...mockHospitals].sort((a, b) => b.score - a.score);
+  async function handleAlert(hospital) {
+    if (onAlertHospital) {
+      const result = await onAlertHospital(hospital);
+      if (result?.success) {
+        setAlertedId(hospital.id);
+      }
+      return;
+    }
 
-  function handleAlert(hospital) {
-    setAlerting(hospital.id);
     setTimeout(() => {
       setAlertedId(hospital.id);
-      setAlerting(null);
     }, 1200);
   }
 
@@ -165,9 +169,9 @@ export default function HospitalList({ onSelect }) {
                   border: alertedId === h.id ? "1px solid #06d6a0" : "1px solid #ffffff20",
                 }}
               >
-                {alerting === h.id ? "⟳ Alerting..." : alertedId === h.id ? "✓ Pre-Alerted" : "⚡ Alert Hospital"}
+                {alertingHospitalId === h.id ? "⟳ Alerting..." : alertedId === h.id ? "✓ Pre-Alerted" : "⚡ Alert Hospital"}
               </button>
-              <button style={styles.routeBtn} onClick={(e) => e.stopPropagation()}>
+              <button style={styles.routeBtn} onClick={(e) => { e.stopPropagation(); onViewRoute && onViewRoute(h); }}>
                 🗺 View Route
               </button>
             </div>

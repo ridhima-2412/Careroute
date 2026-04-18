@@ -78,7 +78,7 @@ function ActionButton({ action, onClick, active, loading }) {
   );
 }
 
-export default function Buttons() {
+export default function Buttons({ onAction }) {
   const [active, setActive] = useState({});
   const [loading, setLoading] = useState(null);
   const [log, setLog] = useState([
@@ -89,10 +89,11 @@ export default function Buttons() {
 
   function handleAction(id) {
     setLoading(id);
-    setTimeout(() => {
+    setTimeout(async () => {
+      const action = actions.find((a) => a.id === id);
+      const result = onAction ? await onAction(id) : null;
       setLoading(null);
       setActive((prev) => ({ ...prev, [id]: !prev[id] }));
-      const action = actions.find((a) => a.id === id);
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
       const msgs = {
@@ -105,7 +106,7 @@ export default function Buttons() {
       };
       setLog((prev) => [
         ...prev,
-        { time, msg: msgs[id] || `Action executed: ${action.label}`, type: active[id] ? "warning" : "success" },
+        { time, msg: result?.message || msgs[id] || `Action executed: ${action.label}`, type: active[id] ? "warning" : "success" },
       ].slice(-6));
     }, 800);
   }

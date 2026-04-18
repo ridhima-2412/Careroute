@@ -26,23 +26,34 @@ function isCritical(val, range) {
   return v < range[1] || v > range[2];
 }
 
-export default function Vitals({ patientName = "Patient #A-112" }) {
+export default function Vitals({ patientName = "Patient #A-112", liveVitals, onVitalsChange }) {
   const [vitals, setVitals] = useState(generateVitals());
   const [history, setHistory] = useState([generateVitals()]);
   const [pulse, setPulse] = useState(false);
+  const displayedVitals = liveVitals || vitals;
 
   useEffect(() => {
+    const initialVitals = liveVitals || generateVitals();
+    setVitals(initialVitals);
+    setHistory([initialVitals]);
+    onVitalsChange && onVitalsChange(initialVitals);
+
+    if (liveVitals) {
+      return undefined;
+    }
+
     const interval = setInterval(() => {
       const next = generateVitals();
       setVitals(next);
       setHistory((h) => [...h.slice(-19), next]);
+      onVitalsChange && onVitalsChange(next);
       setPulse(true);
       setTimeout(() => setPulse(false), 300);
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [liveVitals, onVitalsChange]);
 
-  const severity = vitals.gcs < 9 || vitals.spo2 < 90 || vitals.heartRate > 140 ? "CRITICAL" : vitals.gcs < 13 ? "MODERATE" : "STABLE";
+  const severity = displayedVitals.gcs < 9 || displayedVitals.spo2 < 90 || displayedVitals.heartRate > 140 ? "CRITICAL" : displayedVitals.gcs < 13 ? "MODERATE" : "STABLE";
 
   return (
     <div style={styles.container}>
@@ -59,7 +70,7 @@ export default function Vitals({ patientName = "Patient #A-112" }) {
 
       <div style={styles.grid}>
         {vitalsConfig.map((v) => {
-          const val = vitals[v.key];
+          const val = displayedVitals[v.key];
           const critical = isCritical(val, v.critical);
           return (
             <div key={v.key} style={{ ...styles.card, border: `1px solid ${critical ? v.color + "88" : "#ffffff12"}`, background: critical ? v.color + "0a" : "#ffffff05" }}>
