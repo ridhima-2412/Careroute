@@ -64,8 +64,8 @@ smart-ambulance/
 
 ## ⚙️ Setup Instructions
 
-1️⃣ Install dependencies
 ```bash
+1️⃣ Install dependencies
 npm install
 2️⃣ Run Backend (Terminal 1)
 cd backend
