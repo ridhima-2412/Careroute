@@ -64,18 +64,23 @@ smart-ambulance/
 
 ## ⚙️ Setup Instructions
 
+### 1️⃣ Install dependencies
 ```bash
 npm install
-node backend/server.js
-```
+2️⃣ Run Backend (Terminal 1)
+cd backend
+node server.js
 
-Server runs on:
+Backend runs on:
+ http://localhost:5000
 
-```
-http://localhost:5000
-```
+3️⃣ Run Frontend (Terminal 2)
+cd frontend
+npm install
+npm start
 
----
+Frontend runs on (example):
+  http://localhost:8000
 
 ## 🧪 API Example
 
