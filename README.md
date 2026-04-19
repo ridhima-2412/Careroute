@@ -64,7 +64,7 @@ smart-ambulance/
 
 ## ⚙️ Setup Instructions
 
-### 1️⃣ Install dependencies
+1️⃣ Install dependencies
 ```bash
 npm install
 2️⃣ Run Backend (Terminal 1)
@@ -79,16 +79,20 @@ cd frontend
 npm install
 npm start
 
-Frontend runs on (example):
+Frontend runs on :
   http://localhost:8000
+```
+
+
+---
 
 ## 🧪 API Example
 
-### POST `/recommend-hospital`
+### POST `/api/hospitals/recommend`
 
 ```json
 {
-  "severity": "high",
+  "severity": "CRITICAL",
   "requiredSpecialty": "cardiology",
   "location": {
     "lat": 28.61,
@@ -96,7 +100,6 @@ Frontend runs on (example):
   }
 }
 ```
-
 ---
 
 ## 🧠 How It Works
