@@ -23920,7 +23920,7 @@
     if (!hospital) {
       return /* @__PURE__ */ import_react7.default.createElement("section", { className: "panel" }, /* @__PURE__ */ import_react7.default.createElement("div", { className: "eyebrow" }, "Destination decision"), /* @__PURE__ */ import_react7.default.createElement("h2", { className: "panel-title" }, "Awaiting hospital recommendation"), /* @__PURE__ */ import_react7.default.createElement("div", { className: "loading-state", style: { marginTop: 18 } }, "Live vitals are being evaluated against hospital capacity, specialty support, and ETA."));
     }
-    const selectedReason = hospital.reason || `${hospital.name} has ${hospital.icuBeds} ICU bed(s), ${hospital.ventilators} ventilator(s), ${specialty} support, and an estimated arrival time of ${hospital.eta}.`;
+    const selectedReason = hospital.reason || `has ${hospital.icuBeds} ICU bed(s), ${hospital.ventilators} ventilator(s), ${specialty} support, and an estimated arrival time of ${hospital.eta}.`;
     const suggestedAction = severity === "CRITICAL" ? `Send the receiving alert now and prepare airway support during the ${hospital.eta} transfer.` : `Confirm acceptance with ${hospital.name} and continue monitoring for deterioration.`;
     return /* @__PURE__ */ import_react7.default.createElement("section", { className: "panel" }, /* @__PURE__ */ import_react7.default.createElement("div", { className: "panel-header" }, /* @__PURE__ */ import_react7.default.createElement("div", null, /* @__PURE__ */ import_react7.default.createElement("div", { className: "eyebrow" }, "Destination decision"), /* @__PURE__ */ import_react7.default.createElement("h2", { className: "panel-title" }, hospital.name), /* @__PURE__ */ import_react7.default.createElement("p", { className: "panel-copy" }, "Best hospital for the current clinical and transport constraints")), /* @__PURE__ */ import_react7.default.createElement("span", { className: "status-pill status-success" }, "BEST MATCH ", hospital.score)), /* @__PURE__ */ import_react7.default.createElement("div", { className: "operational-note" }, "CareRoute selected ", hospital.name, " because it ", selectedReason.replace(/^./, (c) => c.toLowerCase())), /* @__PURE__ */ import_react7.default.createElement("div", { className: "recommendation-facts" }, /* @__PURE__ */ import_react7.default.createElement("div", null, /* @__PURE__ */ import_react7.default.createElement("span", null, "ETA"), /* @__PURE__ */ import_react7.default.createElement("strong", null, hospital.eta)), /* @__PURE__ */ import_react7.default.createElement("div", null, /* @__PURE__ */ import_react7.default.createElement("span", null, "ICU beds"), /* @__PURE__ */ import_react7.default.createElement("strong", null, hospital.icuBeds)), /* @__PURE__ */ import_react7.default.createElement("div", null, /* @__PURE__ */ import_react7.default.createElement("span", null, "Ventilators"), /* @__PURE__ */ import_react7.default.createElement("strong", null, hospital.ventilators)), /* @__PURE__ */ import_react7.default.createElement("div", null, /* @__PURE__ */ import_react7.default.createElement("span", null, "Emergency load"), /* @__PURE__ */ import_react7.default.createElement("strong", null, hospital.waitTime || "Low"))), rerouteEvent && /* @__PURE__ */ import_react7.default.createElement("div", { className: "decision-alert" }, /* @__PURE__ */ import_react7.default.createElement("strong", null, "Route update:"), " ", rerouteEvent.trigger, " ", rerouteEvent.agentAction), /* @__PURE__ */ import_react7.default.createElement("div", { className: "decision-section" }, /* @__PURE__ */ import_react7.default.createElement("h3", null, "Why other hospitals were not selected"), (alternatives || []).slice(0, 3).map((alternative) => /* @__PURE__ */ import_react7.default.createElement("div", { className: "rejection-row", key: alternative.id }, /* @__PURE__ */ import_react7.default.createElement("span", null, alternative.name), /* @__PURE__ */ import_react7.default.createElement("strong", null, rejectionReason(alternative, specialty))))), /* @__PURE__ */ import_react7.default.createElement("div", { className: "suggested-action" }, /* @__PURE__ */ import_react7.default.createElement("span", null, "Suggested paramedic action"), /* @__PURE__ */ import_react7.default.createElement("strong", null, suggestedAction)));
   }
@@ -24372,7 +24372,9 @@
     const loadRecommendations = (0, import_react9.useCallback)(async (vitals, options = {}) => {
       if (!vitals) return null;
       setDashboardError("");
-      setLoadingState(options.refresh ? "Refreshing hospital capacity" : "Evaluating hospital readiness");
+      if (!options.silent) {
+        setLoadingState(options.refresh ? "Refreshing hospital capacity" : "Evaluating hospital readiness");
+      }
       try {
         const severityResponse = await getSeverityScore(vitals);
         const requiredSpecialty = inferSpecialty(vitals);
@@ -24408,7 +24410,7 @@
     (0, import_react9.useEffect)(() => {
       if (!latestVitals) return;
       let active = true;
-      loadRecommendations(latestVitals).then((result) => {
+      loadRecommendations(latestVitals, { silent: true }).then((result) => {
         if (!active || !result?.preferredHospital) return;
         if (!autonomousRerouteStartedRef.current && result.preferredHospital.name?.toLowerCase().includes("aiims")) {
           autonomousRerouteStartedRef.current = "scheduled";

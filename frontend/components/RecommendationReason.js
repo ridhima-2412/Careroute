@@ -38,7 +38,7 @@ export default function RecommendationReason({
 
   const selectedReason =
     hospital.reason ||
-    `${hospital.name} has ${hospital.icuBeds} ICU bed(s), ${hospital.ventilators} ventilator(s), ` +
+    `has ${hospital.icuBeds} ICU bed(s), ${hospital.ventilators} ventilator(s), ` +
       `${specialty} support, and an estimated arrival time of ${hospital.eta}.`;
   const suggestedAction =
     severity === "CRITICAL"

@@ -59,7 +59,9 @@ export default function App() {
     if (!vitals) return null;
 
     setDashboardError("");
-    setLoadingState(options.refresh ? "Refreshing hospital capacity" : "Evaluating hospital readiness");
+    if (!options.silent) {
+      setLoadingState(options.refresh ? "Refreshing hospital capacity" : "Evaluating hospital readiness");
+    }
 
     try {
       const severityResponse = await getSeverityScore(vitals);
@@ -102,7 +104,7 @@ export default function App() {
     if (!latestVitals) return;
     let active = true;
 
-    loadRecommendations(latestVitals).then((result) => {
+    loadRecommendations(latestVitals, { silent: true }).then((result) => {
       if (!active || !result?.preferredHospital) return;
       if (
         !autonomousRerouteStartedRef.current &&
