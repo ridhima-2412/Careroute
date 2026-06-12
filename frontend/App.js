@@ -1,9 +1,12 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
-import Vitals from "./components/Vitals";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Buttons from "./components/Buttons";
+import DashboardHeader from "./components/DashboardHeader";
+import EmergencyStatusCard from "./components/EmergencyStatusCard";
 import HospitalList from "./components/HospitalList";
 import MapView from "./components/MapView";
-import Buttons from "./components/Buttons";
-import AIReasoningPanel from "./components/AIReasoningPanel";
+import PatientSummaryCard from "./components/PatientSummaryCard";
+import RecommendationReason from "./components/RecommendationReason";
+import Vitals from "./components/Vitals";
 import {
   broadcastSOS,
   getHospitalRecommendations,
@@ -13,125 +16,17 @@ import {
   submitVitals,
   triggerAutonomousReroute,
 } from "./api";
+import "./dashboard.css";
 
 const CASE_ID = "EMRG-2024-441";
 const AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
 const AUTONOMOUS_REROUTE_DELAY_MS = 5000;
-const REROUTE_STATUS_COPY = {
-  monitoring: "Monitoring live hospital capacity",
-  evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
-  rerouted: "Autonomous reroute active",
-};
 
 function inferSpecialty(vitals) {
   if (!vitals) return "general";
   if (vitals.heartRate > 130 || vitals.spo2 < 92) return "cardiology";
   if (vitals.gcs < 10) return "trauma";
   return "general";
-}
-
-function TopBar() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div style={topBarStyles.bar}>
-      <div style={topBarStyles.left}>
-        <div style={topBarStyles.logo}>
-          <span style={topBarStyles.logoIcon}>🚑</span>
-          <div>
-            <div style={topBarStyles.logoTitle}>SMART AMBULANCE</div>
-            <div style={topBarStyles.logoSub}>Decision Support System v1.0</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={topBarStyles.center}>
-        <div style={topBarStyles.statusItem}>
-          <span style={{ ...topBarStyles.indicator, background: "#06d6a0" }} />
-          GPS LOCK
-        </div>
-        <div style={topBarStyles.statusItem}>
-          <span style={{ ...topBarStyles.indicator, background: "#00d4ff" }} />
-          4G CONNECTED
-        </div>
-        <div style={topBarStyles.statusItem}>
-          <span style={{ ...topBarStyles.indicator, background: "#ffd166", animation: "blink 1s infinite" }} />
-          EN ROUTE
-        </div>
-      </div>
-
-      <div style={topBarStyles.right}>
-        <div style={topBarStyles.time}>
-          {time.toLocaleTimeString("en-IN", { hour12: false })}
-        </div>
-        <div style={topBarStyles.date}>
-          {time.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SurvivalBadge({ survivalProbability = 87 }) {
-  return (
-    <div style={survivalStyles.container}>
-      <div style={survivalStyles.label}>SURVIVAL PROBABILITY</div>
-      <div style={survivalStyles.value}>{survivalProbability}<span style={{ fontSize: 20 }}>%</span></div>
-      <div style={survivalStyles.bar}>
-        <div style={{ ...survivalStyles.fill, width: `${survivalProbability}%` }} />
-      </div>
-      <div style={survivalStyles.sub}>Based on current vitals & hospital match</div>
-    </div>
-  );
-}
-
-function CaseSummary() {
-  return (
-    <div style={summaryStyles.container}>
-      <div style={summaryStyles.label}>CASE SUMMARY</div>
-      <div style={summaryStyles.row}><span>Case ID</span><strong>#EMRG-2024-441</strong></div>
-      <div style={summaryStyles.row}><span>Incident Type</span><strong style={{ color: "#ff4d6d" }}>Cardiac Arrest</strong></div>
-      <div style={summaryStyles.row}><span>Age / Gender</span><strong>52 / Male</strong></div>
-      <div style={summaryStyles.row}><span>Crew</span><strong>Dr. Mehta + EMT Raza</strong></div>
-      <div style={summaryStyles.row}><span>Dispatch Time</span><strong>17:01:14</strong></div>
-      <div style={summaryStyles.row}><span>On Scene At</span><strong>17:04:28</strong></div>
-    </div>
-  );
-}
-
-function AutonomousReroutePanel({ event, status, destination }) {
-  const accent = status === "rerouted" ? "#06d6a0" : status === "evaluating" ? "#ffd166" : "#00d4ff";
-  const fallbackMessage =
-    status === "rerouted" && destination?.name
-      ? `${REROUTE_STATUS_COPY.rerouted}: ${destination.name}`
-      : REROUTE_STATUS_COPY[status];
-
-  return (
-    <div style={{ ...rerouteStyles.container, borderColor: `${accent}55` }}>
-      <div style={rerouteStyles.header}>
-        <div>
-          <div style={rerouteStyles.label}>AUTONOMOUS RE-ROUTING SIMULATION</div>
-          <div style={rerouteStyles.title}>Agent Decision Loop</div>
-        </div>
-        <div style={{ ...rerouteStyles.badge, color: accent, borderColor: `${accent}55`, background: `${accent}12` }}>
-          {status.toUpperCase()}
-        </div>
-      </div>
-      <div style={rerouteStyles.timeline}>
-        <div style={{ ...rerouteStyles.step, color: "#00d4ff" }}>1. Monitor route and hospital capacity</div>
-        <div style={{ ...rerouteStyles.step, color: status === "monitoring" ? "#555" : "#ffd166" }}>2. Detect AIIMS full-capacity event</div>
-        <div style={{ ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" }}>3. Switch recommendation without human click</div>
-      </div>
-      <div style={rerouteStyles.message}>
-        {event?.trigger || fallbackMessage}
-        {event?.agentAction ? ` ${event.agentAction}` : ""}
-      </div>
-    </div>
-  );
 }
 
 export default function App() {
@@ -141,142 +36,133 @@ export default function App() {
   const [severity, setSeverity] = useState("STABLE");
   const [survivalProbability, setSurvivalProbability] = useState(87);
   const [route, setRoute] = useState(null);
+  const [loadingState, setLoadingState] = useState("Waiting for patient vitals");
+  const [dashboardError, setDashboardError] = useState("");
+  const [alertStatus, setAlertStatus] = useState("idle");
   const [alertingHospitalId, setAlertingHospitalId] = useState(null);
   const [rerouteEvent, setRerouteEvent] = useState(null);
   const [rerouteStatus, setRerouteStatus] = useState("monitoring");
   const autonomousRerouteStartedRef = useRef(false);
   const autonomousRerouteTimerRef = useRef(null);
+
+  const specialty = useMemo(() => inferSpecialty(latestVitals), [latestVitals]);
   const activeHospital = useMemo(() => {
     if (!hospitals.length) return selectedHospital;
     return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
   }, [hospitals, selectedHospital]);
+  const alternatives = useMemo(
+    () => hospitals.filter((hospital) => hospital.id !== activeHospital?.id),
+    [hospitals, activeHospital]
+  );
 
-  function chooseRerouteDestination(response) {
-    return (
-      response.recommendation ||
-      response.hospitals?.find((hospital) => hospital.name === "Metro Hospital") ||
-      response.hospitals?.[0] ||
-      null
-    );
-  }
+  const loadRecommendations = useCallback(async (vitals, options = {}) => {
+    if (!vitals) return null;
 
-  function shouldStartAutonomousReroute(preferredHospital) {
-    return (
-      !autonomousRerouteStartedRef.current &&
-      preferredHospital?.name?.toLowerCase().includes("aiims")
-    );
-  }
+    setDashboardError("");
+    setLoadingState(options.refresh ? "Refreshing hospital capacity" : "Evaluating hospital readiness");
 
-  async function runAutonomousReroute(vitals, severityValue, specialty) {
-    if (autonomousRerouteStartedRef.current === "complete") {
-      return;
-    }
+    try {
+      const severityResponse = await getSeverityScore(vitals);
+      const requiredSpecialty = inferSpecialty(vitals);
+      setSeverity(severityResponse.severity);
+      setSurvivalProbability(severityResponse.survivalProbability);
 
-    autonomousRerouteStartedRef.current = "complete";
-    setRerouteStatus("evaluating");
-
-    const rerouteResponse = await triggerAutonomousReroute({
-      caseId: CASE_ID,
-      severity: severityValue,
-      specialty,
-      location: AMBULANCE_LOCATION,
-      patientVitals: vitals,
-    });
-
-    const nextHospital = chooseRerouteDestination(rerouteResponse);
-
-    setRerouteEvent(rerouteResponse.event);
-    setHospitals(rerouteResponse.hospitals || []);
-    setSelectedHospital(nextHospital);
-    setRerouteStatus("rerouted");
-
-    if (nextHospital?.id) {
-      const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
-      setRoute(routeResponse.route);
-    }
-  }
-
-  function scheduleAutonomousReroute(vitals, severityValue, specialty) {
-    autonomousRerouteStartedRef.current = "scheduled";
-    autonomousRerouteTimerRef.current = setTimeout(() => {
-      runAutonomousReroute(vitals, severityValue, specialty).catch((error) => {
-        console.error("Autonomous reroute failed", error);
-        setRerouteStatus("monitoring");
-        autonomousRerouteStartedRef.current = false;
+      await submitVitals(CASE_ID, vitals);
+      const recommendationResponse = await getHospitalRecommendations({
+        severity: severityResponse.severity,
+        specialty: requiredSpecialty,
+        location: AMBULANCE_LOCATION,
+        patientVitals: vitals,
       });
-    }, AUTONOMOUS_REROUTE_DELAY_MS);
-  }
+
+      const rankedHospitals = recommendationResponse.hospitals || [];
+      const preferredHospital = recommendationResponse.recommendation || rankedHospitals[0] || null;
+      setHospitals(rankedHospitals);
+      setSelectedHospital((current) => {
+        if (options.forceBest || !current) return preferredHospital;
+        return rankedHospitals.find((hospital) => hospital.id === current.id) || preferredHospital;
+      });
+
+      if (preferredHospital?.id) {
+        const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
+        setRoute(routeResponse.route);
+      }
+
+      setLoadingState("");
+      return { preferredHospital, severityResponse, requiredSpecialty };
+    } catch (error) {
+      console.error("Failed to synchronize emergency dashboard", error);
+      setDashboardError("Live hospital data could not be loaded. Confirm that the backend is running on port 5000.");
+      setLoadingState("");
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
-    if (!latestVitals) {
-      return;
-    }
-
+    if (!latestVitals) return;
     let active = true;
 
-    async function syncCase() {
-      try {
-        const severityResponse = await getSeverityScore(latestVitals);
-        const specialty = inferSpecialty(latestVitals);
+    loadRecommendations(latestVitals).then((result) => {
+      if (!active || !result?.preferredHospital) return;
+      if (
+        !autonomousRerouteStartedRef.current &&
+        result.preferredHospital.name?.toLowerCase().includes("aiims")
+      ) {
+        autonomousRerouteStartedRef.current = "scheduled";
+        autonomousRerouteTimerRef.current = setTimeout(async () => {
+          try {
+            setRerouteStatus("evaluating");
+            const response = await triggerAutonomousReroute({
+              caseId: CASE_ID,
+              severity: result.severityResponse.severity,
+              specialty: result.requiredSpecialty,
+              location: AMBULANCE_LOCATION,
+              patientVitals: latestVitals,
+            });
+            const nextHospital = response.recommendation || response.hospitals?.[0] || null;
+            setRerouteEvent(response.event);
+            setHospitals(response.hospitals || []);
+            setSelectedHospital(nextHospital);
+            setRerouteStatus("rerouted");
+            autonomousRerouteStartedRef.current = "complete";
 
-        if (!active) return;
-        setSeverity(severityResponse.severity);
-        setSurvivalProbability(severityResponse.survivalProbability);
-
-        await submitVitals(CASE_ID, latestVitals);
-
-        const recommendationResponse = await getHospitalRecommendations({
-          severity: severityResponse.severity,
-          specialty,
-          location: AMBULANCE_LOCATION,
-          patientVitals: latestVitals,
-        });
-
-        if (!active) return;
-        setHospitals(recommendationResponse.hospitals || []);
-
-        const preferredHospital =
-          recommendationResponse.recommendation ||
-          recommendationResponse.hospitals?.[0] ||
-          null;
-
-        setSelectedHospital((current) => current || preferredHospital);
-
-        if (preferredHospital?.id) {
-          const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
-          if (!active) return;
-          setRoute(routeResponse.route);
-
-          if (shouldStartAutonomousReroute(preferredHospital)) {
-            scheduleAutonomousReroute(latestVitals, severityResponse.severity, specialty);
+            if (nextHospital?.id) {
+              const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
+              setRoute(routeResponse.route);
+            }
+          } catch (error) {
+            console.error("Autonomous reroute failed", error);
+            setRerouteStatus("monitoring");
+            autonomousRerouteStartedRef.current = false;
           }
-        }
-      } catch (error) {
-        console.error("Failed to sync case data", error);
+        }, AUTONOMOUS_REROUTE_DELAY_MS);
       }
-    }
-
-    syncCase();
+    });
 
     return () => {
       active = false;
     };
-  }, [latestVitals]);
+  }, [latestVitals, loadRecommendations]);
 
-  useEffect(() => {
-    return () => clearTimeout(autonomousRerouteTimerRef.current);
-  }, []);
+  useEffect(() => () => clearTimeout(autonomousRerouteTimerRef.current), []);
 
   async function handleAlertHospital(hospital) {
     try {
+      setAlertStatus("sending");
       setAlertingHospitalId(hospital.id);
-      return await sendPreAlert(hospital.id, {
+      const response = await sendPreAlert(hospital.id, {
         caseId: CASE_ID,
         severity,
-        specialty: inferSpecialty(latestVitals),
+        specialty,
         location: AMBULANCE_LOCATION,
         vitals: latestVitals,
       });
+      setAlertStatus("sent");
+      return response;
+    } catch (error) {
+      setAlertStatus("error");
+      setDashboardError("The hospital alert was not delivered. Check backend connectivity and retry.");
+      throw error;
     } finally {
       setAlertingHospitalId(null);
     }
@@ -284,131 +170,100 @@ export default function App() {
 
   async function handleViewRoute(hospital) {
     setSelectedHospital(hospital);
-    const routeResponse = await getRoute(AMBULANCE_LOCATION, hospital.id);
-    setRoute(routeResponse.route);
+    setLoadingState("Calculating route");
+    try {
+      const routeResponse = await getRoute(AMBULANCE_LOCATION, hospital.id);
+      setRoute(routeResponse.route);
+    } finally {
+      setLoadingState("");
+    }
   }
 
   async function handleAction(actionId) {
-    if (actionId === "prealert" && selectedHospital) {
-      const response = await handleAlertHospital(selectedHospital);
-      return { message: response.message || `Pre-alert sent to ${selectedHospital.name}` };
+    if (actionId === "recommend") {
+      await loadRecommendations(latestVitals, { forceBest: true });
+      return { message: "Hospital recommendation updated using current vitals and capacity." };
+    }
+
+    if (actionId === "refresh") {
+      await loadRecommendations(latestVitals, { refresh: true });
+      return { message: "Hospital capacity and route data refreshed." };
+    }
+
+    if (actionId === "alert" && activeHospital) {
+      const response = await handleAlertHospital(activeHospital);
+      return { message: response.message || `Alert sent to ${activeHospital.name}.` };
     }
 
     if (actionId === "sos") {
       const response = await broadcastSOS({
         severity,
-        specialty: inferSpecialty(latestVitals),
+        specialty,
         location: AMBULANCE_LOCATION,
         vitals: latestVitals,
       });
       return { message: response.message };
     }
 
-    if (actionId === "route" && selectedHospital) {
-      const routeResponse = await getRoute(AMBULANCE_LOCATION, selectedHospital.id);
-      setRoute(routeResponse.route);
-      return { message: `Route updated for ${selectedHospital.name} (${routeResponse.route.eta})` };
-    }
-
-    if (actionId === "escalate") {
-      setSeverity("CRITICAL");
-      return { message: "Case severity escalated locally for dispatch review" };
-    }
-
-    return null;
+    return { message: "Select a destination hospital before sending an alert." };
   }
 
   return (
-    <div style={appStyles.root}>
-      <TopBar />
+    <div className="dashboard-shell">
+      <DashboardHeader caseId={CASE_ID} severity={severity} />
 
-      <div style={appStyles.main}>
-        {/* Left Column */}
-        <div style={appStyles.leftCol}>
-          <Vitals patientName="Patient #EMRG-441 — Ramesh K." onVitalsChange={setLatestVitals} />
-          <div style={{ display: "flex", gap: 14 }}>
-            <SurvivalBadge survivalProbability={survivalProbability} />
-            <CaseSummary />
+      <main className="dashboard-main">
+        {dashboardError && <div className="error-state dashboard-error">{dashboardError}</div>}
+        {loadingState && <div className="loading-state dashboard-loading">{loadingState}...</div>}
+
+        <div className="dashboard-grid">
+          <div className="dashboard-column">
+            <PatientSummaryCard
+              severity={severity}
+              specialty={specialty}
+              survivalProbability={survivalProbability}
+            />
+            <Vitals
+              patientName="Patient #EMRG-441 - Ramesh K."
+              onVitalsChange={setLatestVitals}
+            />
+            <EmergencyStatusCard
+              hospital={activeHospital}
+              alertStatus={alertStatus}
+              rerouteStatus={rerouteStatus}
+            />
+          </div>
+
+          <div className="dashboard-column">
+            <RecommendationReason
+              hospital={activeHospital}
+              alternatives={alternatives}
+              specialty={specialty}
+              severity={severity}
+              rerouteEvent={rerouteEvent}
+            />
+            <MapView selectedHospital={activeHospital} hospitals={hospitals} route={route} />
+            <Buttons
+              onAction={handleAction}
+              disabled={!latestVitals}
+              alertStatus={alertStatus}
+              destinationName={activeHospital?.name}
+            />
+          </div>
+
+          <div className="dashboard-column">
+            <HospitalList
+              hospitals={hospitals}
+              selectedHospitalId={activeHospital?.id}
+              specialty={specialty}
+              onSelect={setSelectedHospital}
+              onAlertHospital={handleAlertHospital}
+              onViewRoute={handleViewRoute}
+              alertingHospitalId={alertingHospitalId}
+            />
           </div>
         </div>
-
-        {/* Center Column */}
-        <div style={appStyles.centerCol}>
-          <MapView selectedHospital={selectedHospital} hospitals={hospitals} route={route} />
-          <AutonomousReroutePanel event={rerouteEvent} status={rerouteStatus} destination={activeHospital} />
-          <Buttons onAction={handleAction} />
-        </div>
-
-        {/* Right Column */}
-        <div style={appStyles.rightCol}>
-          <AIReasoningPanel hospital={activeHospital} />
-          <HospitalList
-            hospitals={hospitals}
-            onSelect={setSelectedHospital}
-            onAlertHospital={handleAlertHospital}
-            onViewRoute={handleViewRoute}
-            alertingHospitalId={alertingHospitalId}
-          />
-        </div>
-      </div>
-
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #070a0f; }
-        @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0d1117; }
-        ::-webkit-scrollbar-thumb { background: #ffffff15; border-radius: 2px; }
-      `}</style>
+      </main>
     </div>
   );
 }
-
-const appStyles = {
-  root: { background: "#070a0f", minHeight: "100vh", fontFamily: "'JetBrains Mono', 'Courier New', monospace", color: "#f0f0f0", display: "flex", flexDirection: "column" },
-  main: { display: "grid", gridTemplateColumns: "360px 1fr 380px", gap: 14, padding: "14px 20px 20px", flex: 1, minHeight: 0, overflow: "auto" },
-  leftCol: { display: "flex", flexDirection: "column", gap: 14, minWidth: 0 },
-  centerCol: { display: "flex", flexDirection: "column", gap: 14, minWidth: 0 },
-  rightCol: { display: "flex", flexDirection: "column", gap: 14, minWidth: 0, overflowY: "auto", maxHeight: "calc(100vh - 80px)" },
-};
-
-const topBarStyles = {
-  bar: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", background: "#0d1117", borderBottom: "1px solid #ffffff10" },
-  left: { display: "flex", alignItems: "center" },
-  logo: { display: "flex", alignItems: "center", gap: 12 },
-  logoIcon: { fontSize: 28 },
-  logoTitle: { fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 2 },
-  logoSub: { fontSize: 9, color: "#555", letterSpacing: 2, textTransform: "uppercase" },
-  center: { display: "flex", alignItems: "center", gap: 24 },
-  statusItem: { display: "flex", alignItems: "center", gap: 6, fontSize: 9, letterSpacing: 2, color: "#888" },
-  indicator: { display: "inline-block", width: 7, height: 7, borderRadius: "50%" },
-  right: { textAlign: "right" },
-  time: { fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 2, fontVariantNumeric: "tabular-nums" },
-  date: { fontSize: 9, color: "#555", letterSpacing: 2, textTransform: "uppercase", marginTop: 2 },
-};
-
-const survivalStyles = {
-  container: { flex: 1, background: "#0d1117", border: "1px solid #06d6a033", borderRadius: 14, padding: 16 },
-  label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase", marginBottom: 6 },
-  value: { fontSize: 42, fontWeight: 900, color: "#06d6a0", lineHeight: 1 },
-  bar: { height: 4, background: "#ffffff10", borderRadius: 4, margin: "10px 0 6px", overflow: "hidden" },
-  fill: { width: "87%", height: "100%", background: "linear-gradient(90deg, #06d6a0, #00d4ff)", borderRadius: 4 },
-  sub: { fontSize: 9, color: "#555", lineHeight: 1.4 },
-};
-
-const summaryStyles = {
-  container: { flex: 1.5, background: "#0d1117", border: "1px solid #ffffff10", borderRadius: 14, padding: 16 },
-  label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase", marginBottom: 10 },
-  row: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "#666", marginBottom: 7, borderBottom: "1px solid #ffffff06", paddingBottom: 6 },
-};
-
-const rerouteStyles = {
-  container: { background: "#0d1117", border: "1px solid #00d4ff55", borderRadius: 12, padding: 16 },
-  header: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 12 },
-  label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase" },
-  title: { fontSize: 16, fontWeight: 800, color: "#fff", marginTop: 4 },
-  badge: { border: "1px solid", borderRadius: 8, padding: "4px 9px", fontSize: 9, fontWeight: 900, letterSpacing: 1.5 },
-  timeline: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 10 },
-  step: { background: "#ffffff05", border: "1px solid #ffffff10", borderRadius: 8, padding: 10, fontSize: 9, lineHeight: 1.4, fontWeight: 800 },
-  message: { color: "#aaa", fontSize: 10, lineHeight: 1.5, background: "#00000055", border: "1px solid #ffffff0d", borderRadius: 8, padding: 10 },
-};
