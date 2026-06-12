@@ -1,12 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import Vitals from "./components/Vitals";
 import HospitalList from "./components/HospitalList";
 import MapView from "./components/MapView";
 import Buttons from "./components/Buttons";
-import { broadcastSOS, getHospitalRecommendations, getRoute, getSeverityScore, sendPreAlert, submitVitals } from "./api";
+import AIReasoningPanel from "./components/AIReasoningPanel";
+import {
+  broadcastSOS,
+  getHospitalRecommendations,
+  getRoute,
+  getSeverityScore,
+  sendPreAlert,
+  submitVitals,
+  triggerAutonomousReroute,
+} from "./api";
 
 const CASE_ID = "EMRG-2024-441";
 const AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
+const AUTONOMOUS_REROUTE_DELAY_MS = 5000;
+const REROUTE_STATUS_COPY = {
+  monitoring: "Monitoring live hospital capacity",
+  evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
+  rerouted: "Autonomous reroute active",
+};
 
 function inferSpecialty(vitals) {
   if (!vitals) return "general";
@@ -88,6 +103,37 @@ function CaseSummary() {
   );
 }
 
+function AutonomousReroutePanel({ event, status, destination }) {
+  const accent = status === "rerouted" ? "#06d6a0" : status === "evaluating" ? "#ffd166" : "#00d4ff";
+  const fallbackMessage =
+    status === "rerouted" && destination?.name
+      ? `${REROUTE_STATUS_COPY.rerouted}: ${destination.name}`
+      : REROUTE_STATUS_COPY[status];
+
+  return (
+    <div style={{ ...rerouteStyles.container, borderColor: `${accent}55` }}>
+      <div style={rerouteStyles.header}>
+        <div>
+          <div style={rerouteStyles.label}>AUTONOMOUS RE-ROUTING SIMULATION</div>
+          <div style={rerouteStyles.title}>Agent Decision Loop</div>
+        </div>
+        <div style={{ ...rerouteStyles.badge, color: accent, borderColor: `${accent}55`, background: `${accent}12` }}>
+          {status.toUpperCase()}
+        </div>
+      </div>
+      <div style={rerouteStyles.timeline}>
+        <div style={{ ...rerouteStyles.step, color: "#00d4ff" }}>1. Monitor route and hospital capacity</div>
+        <div style={{ ...rerouteStyles.step, color: status === "monitoring" ? "#555" : "#ffd166" }}>2. Detect AIIMS full-capacity event</div>
+        <div style={{ ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" }}>3. Switch recommendation without human click</div>
+      </div>
+      <div style={rerouteStyles.message}>
+        {event?.trigger || fallbackMessage}
+        {event?.agentAction ? ` ${event.agentAction}` : ""}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [hospitals, setHospitals] = useState([]);
@@ -96,6 +142,70 @@ export default function App() {
   const [survivalProbability, setSurvivalProbability] = useState(87);
   const [route, setRoute] = useState(null);
   const [alertingHospitalId, setAlertingHospitalId] = useState(null);
+  const [rerouteEvent, setRerouteEvent] = useState(null);
+  const [rerouteStatus, setRerouteStatus] = useState("monitoring");
+  const autonomousRerouteStartedRef = useRef(false);
+  const autonomousRerouteTimerRef = useRef(null);
+  const activeHospital = useMemo(() => {
+    if (!hospitals.length) return selectedHospital;
+    return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
+  }, [hospitals, selectedHospital]);
+
+  function chooseRerouteDestination(response) {
+    return (
+      response.recommendation ||
+      response.hospitals?.find((hospital) => hospital.name === "Metro Hospital") ||
+      response.hospitals?.[0] ||
+      null
+    );
+  }
+
+  function shouldStartAutonomousReroute(preferredHospital) {
+    return (
+      !autonomousRerouteStartedRef.current &&
+      preferredHospital?.name?.toLowerCase().includes("aiims")
+    );
+  }
+
+  async function runAutonomousReroute(vitals, severityValue, specialty) {
+    if (autonomousRerouteStartedRef.current === "complete") {
+      return;
+    }
+
+    autonomousRerouteStartedRef.current = "complete";
+    setRerouteStatus("evaluating");
+
+    const rerouteResponse = await triggerAutonomousReroute({
+      caseId: CASE_ID,
+      severity: severityValue,
+      specialty,
+      location: AMBULANCE_LOCATION,
+      patientVitals: vitals,
+    });
+
+    const nextHospital = chooseRerouteDestination(rerouteResponse);
+
+    setRerouteEvent(rerouteResponse.event);
+    setHospitals(rerouteResponse.hospitals || []);
+    setSelectedHospital(nextHospital);
+    setRerouteStatus("rerouted");
+
+    if (nextHospital?.id) {
+      const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
+      setRoute(routeResponse.route);
+    }
+  }
+
+  function scheduleAutonomousReroute(vitals, severityValue, specialty) {
+    autonomousRerouteStartedRef.current = "scheduled";
+    autonomousRerouteTimerRef.current = setTimeout(() => {
+      runAutonomousReroute(vitals, severityValue, specialty).catch((error) => {
+        console.error("Autonomous reroute failed", error);
+        setRerouteStatus("monitoring");
+        autonomousRerouteStartedRef.current = false;
+      });
+    }, AUTONOMOUS_REROUTE_DELAY_MS);
+  }
 
   useEffect(() => {
     if (!latestVitals) {
@@ -136,6 +246,10 @@ export default function App() {
           const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
           if (!active) return;
           setRoute(routeResponse.route);
+
+          if (shouldStartAutonomousReroute(preferredHospital)) {
+            scheduleAutonomousReroute(latestVitals, severityResponse.severity, specialty);
+          }
         }
       } catch (error) {
         console.error("Failed to sync case data", error);
@@ -148,6 +262,10 @@ export default function App() {
       active = false;
     };
   }, [latestVitals]);
+
+  useEffect(() => {
+    return () => clearTimeout(autonomousRerouteTimerRef.current);
+  }, []);
 
   async function handleAlertHospital(hospital) {
     try {
@@ -217,11 +335,13 @@ export default function App() {
         {/* Center Column */}
         <div style={appStyles.centerCol}>
           <MapView selectedHospital={selectedHospital} hospitals={hospitals} route={route} />
+          <AutonomousReroutePanel event={rerouteEvent} status={rerouteStatus} destination={activeHospital} />
           <Buttons onAction={handleAction} />
         </div>
 
         {/* Right Column */}
         <div style={appStyles.rightCol}>
+          <AIReasoningPanel hospital={activeHospital} />
           <HospitalList
             hospitals={hospitals}
             onSelect={setSelectedHospital}
@@ -280,4 +400,15 @@ const summaryStyles = {
   container: { flex: 1.5, background: "#0d1117", border: "1px solid #ffffff10", borderRadius: 14, padding: 16 },
   label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase", marginBottom: 10 },
   row: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "#666", marginBottom: 7, borderBottom: "1px solid #ffffff06", paddingBottom: 6 },
+};
+
+const rerouteStyles = {
+  container: { background: "#0d1117", border: "1px solid #00d4ff55", borderRadius: 12, padding: 16 },
+  header: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 12 },
+  label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase" },
+  title: { fontSize: 16, fontWeight: 800, color: "#fff", marginTop: 4 },
+  badge: { border: "1px solid", borderRadius: 8, padding: "4px 9px", fontSize: 9, fontWeight: 900, letterSpacing: 1.5 },
+  timeline: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 10 },
+  step: { background: "#ffffff05", border: "1px solid #ffffff10", borderRadius: 8, padding: 10, fontSize: 9, lineHeight: 1.4, fontWeight: 800 },
+  message: { color: "#aaa", fontSize: 10, lineHeight: 1.5, background: "#00000055", border: "1px solid #ffffff0d", borderRadius: 8, padding: 10 },
 };

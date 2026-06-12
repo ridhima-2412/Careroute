@@ -169,6 +169,42 @@ export async function broadcastSOS(caseData) {
   });
 }
 
+/**
+ * Simulate a mid-route capacity shock and return the autonomous reroute decision.
+ */
+export async function triggerAutonomousReroute(caseData) {
+  if (MOCK_MODE) {
+    await delay(500);
+    const hospitals = MOCK_HOSPITALS.map((hospital) => {
+      if (hospital.name.includes("AIIMS")) {
+        return { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 };
+      }
+
+      if (hospital.name.includes("Metro")) {
+        return { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 };
+      }
+
+      return hospital;
+    }).sort((a, b) => b.score - a.score);
+
+    return {
+      success: true,
+      event: {
+        trigger: "AIIMS Trauma Centre reached full critical-care capacity mid-route.",
+        agentAction: "Re-evaluated hospital scores and rerouted without human input.",
+        preferredHospitalName: "Metro Hospital",
+      },
+      recommendation: hospitals[0],
+      hospitals,
+    };
+  }
+
+  return apiFetch("/simulation/autonomous-reroute", {
+    method: "POST",
+    body: JSON.stringify(caseData),
+  });
+}
+
 // ──────────────────────────────────────────
 // Vitals APIs
 // ──────────────────────────────────────────
@@ -299,4 +335,5 @@ export default {
   transcribeVitalsAudio,
   getRoute,
   getSeverityScore,
+  triggerAutonomousReroute,
 };
