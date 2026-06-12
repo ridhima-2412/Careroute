@@ -1,210 +1,181 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// Simulated map using Canvas (no external API needed for prototype)
-const HOSPITALS = [
-  { id: 1, name: "AIIMS Trauma", x: 0.62, y: 0.38, score: 94, status: "AVAILABLE" },
-  { id: 2, name: "Safdarjung", x: 0.45, y: 0.55, score: 61, status: "LIMITED" },
-  { id: 3, name: "RML Hospital", x: 0.72, y: 0.6, score: 87, status: "AVAILABLE" },
-  { id: 4, name: "GTB Hospital", x: 0.3, y: 0.35, score: 22, status: "FULL" },
+const FALLBACK_POSITIONS = [
+  { x: 0.68, y: 0.28 },
+  { x: 0.42, y: 0.35 },
+  { x: 0.76, y: 0.61 },
+  { x: 0.28, y: 0.62 },
+  { x: 0.55, y: 0.18 },
+  { x: 0.18, y: 0.3 },
+  { x: 0.84, y: 0.4 },
+  { x: 0.48, y: 0.7 },
 ];
+const AMBULANCE = { x: 0.49, y: 0.82 };
 
-const AMBULANCE_PATH = [
-  { x: 0.5, y: 0.75 },
-  { x: 0.52, y: 0.7 },
-  { x: 0.55, y: 0.62 },
-  { x: 0.58, y: 0.55 },
-  { x: 0.61, y: 0.46 },
-  { x: 0.62, y: 0.38 },
-];
-
-function statusColor(s) {
-  return s === "AVAILABLE" ? "#06d6a0" : s === "LIMITED" ? "#ffd166" : "#ff4d6d";
+function statusColor(status) {
+  if (status === "AVAILABLE") return "#32d583";
+  if (status === "LIMITED") return "#ffbd4a";
+  return "#ff5d68";
 }
 
-export default function MapView({ selectedHospital, hospitals = HOSPITALS, route }) {
+export default function MapView({ selectedHospital, hospitals = [], route }) {
   const canvasRef = useRef(null);
-  const [ambulancePos, setAmbulancePos] = useState(0);
-  const [hoveredHospital, setHoveredHospital] = useState(null);
   const [tick, setTick] = useState(0);
-  const animRef = useRef(null);
+  const mappedHospitals = useMemo(
+    () =>
+      hospitals.map((hospital, index) => ({
+        ...hospital,
+        ...(FALLBACK_POSITIONS[index % FALLBACK_POSITIONS.length]),
+      })),
+    [hospitals]
+  );
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setAmbulancePos((p) => (p + 1) % AMBULANCE_PATH.length);
-      setTick((t) => t + 1);
-    }, 600);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => setTick((value) => value + 1), 80);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width;
-    const H = canvas.height;
+    const context = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
 
-    // Background
-    ctx.fillStyle = "#0d1117";
-    ctx.fillRect(0, 0, W, H);
+    context.clearRect(0, 0, width, height);
+    const gradient = context.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "#0c1b28");
+    gradient.addColorStop(1, "#07111a");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
 
-    // Grid lines
-    ctx.strokeStyle = "#ffffff06";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < W; i += 40) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+    context.strokeStyle = "rgba(117, 150, 174, 0.09)";
+    context.lineWidth = 1;
+    for (let x = 0; x < width; x += 44) {
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x, height);
+      context.stroke();
     }
-    for (let i = 0; i < H; i += 40) {
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+    for (let y = 0; y < height; y += 44) {
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+      context.stroke();
     }
 
-    // Roads (simulated)
-    ctx.strokeStyle = "#ffffff10";
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
     const roads = [
-      [[0.1, 0.5], [0.9, 0.5]],
-      [[0.5, 0.1], [0.5, 0.9]],
-      [[0.2, 0.2], [0.8, 0.8]],
-      [[0.8, 0.2], [0.2, 0.8]],
-      [[0.3, 0.1], [0.7, 0.9]],
+      [[0.06, 0.68], [0.94, 0.36]],
+      [[0.15, 0.18], [0.88, 0.82]],
+      [[0.08, 0.42], [0.92, 0.58]],
+      [[0.45, 0.05], [0.52, 0.95]],
     ];
-    roads.forEach(([[x1, y1], [x2, y2]]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1 * W, y1 * H);
-      ctx.lineTo(x2 * W, y2 * H);
-      ctx.stroke();
+    context.strokeStyle = "rgba(151, 177, 196, 0.14)";
+    context.lineWidth = 8;
+    context.lineCap = "round";
+    roads.forEach((road) => {
+      context.beginPath();
+      context.moveTo(road[0][0] * width, road[0][1] * height);
+      context.lineTo(road[1][0] * width, road[1][1] * height);
+      context.stroke();
     });
 
-    // Route to best hospital (animated dashes)
-    const dest = selectedHospital || hospitals[0];
-    const amb = AMBULANCE_PATH[ambulancePos];
-    ctx.setLineDash([8, 6]);
-    ctx.lineDashOffset = -tick * 2;
-    ctx.strokeStyle = "#00d4ff88";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    AMBULANCE_PATH.slice(ambulancePos).forEach((pt, i) => {
-      if (i === 0) ctx.moveTo(pt.x * W, pt.y * H);
-      else ctx.lineTo(pt.x * W, pt.y * H);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    const destination = mappedHospitals.find((hospital) => hospital.id === selectedHospital?.id);
+    if (destination) {
+      context.setLineDash([12, 8]);
+      context.lineDashOffset = -tick;
+      context.strokeStyle = "#47b5ff";
+      context.lineWidth = 4;
+      context.beginPath();
+      context.moveTo(AMBULANCE.x * width, AMBULANCE.y * height);
+      context.quadraticCurveTo(
+        0.56 * width,
+        0.52 * height,
+        destination.x * width,
+        destination.y * height
+      );
+      context.stroke();
+      context.setLineDash([]);
+    }
 
-    // Hospitals
-    hospitals.forEach((h) => {
-      const hx = h.x * W;
-      const hy = h.y * H;
-      const isSelected = selectedHospital?.id === h.id || (!selectedHospital && h.id === 1);
-      const color = statusColor(h.status);
+    mappedHospitals.forEach((hospital) => {
+      const x = hospital.x * width;
+      const y = hospital.y * height;
+      const selected = hospital.id === selectedHospital?.id;
+      const color = statusColor(hospital.status);
 
-      // Pulse ring for selected
-      if (isSelected) {
-        const pulse = 0.5 + 0.5 * Math.sin(tick * 0.3);
-        ctx.beginPath();
-        ctx.arc(hx, hy, 22 + pulse * 8, 0, Math.PI * 2);
-        ctx.strokeStyle = color + "44";
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      if (selected) {
+        context.beginPath();
+        context.arc(x, y, 27 + Math.sin(tick / 7) * 4, 0, Math.PI * 2);
+        context.strokeStyle = `${color}66`;
+        context.lineWidth = 3;
+        context.stroke();
       }
 
-      // Marker
-      ctx.beginPath();
-      ctx.arc(hx, hy, isSelected ? 14 : 10, 0, Math.PI * 2);
-      ctx.fillStyle = color + "22";
-      ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      context.beginPath();
+      context.arc(x, y, selected ? 17 : 13, 0, Math.PI * 2);
+      context.fillStyle = "#0b1721";
+      context.fill();
+      context.strokeStyle = color;
+      context.lineWidth = 3;
+      context.stroke();
 
-      // Cross icon
-      ctx.fillStyle = color;
-      ctx.font = `bold ${isSelected ? 14 : 10}px monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("✚", hx, hy);
+      context.fillStyle = color;
+      context.font = "bold 18px Segoe UI";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText("+", x, y - 1);
 
-      // Label
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `${isSelected ? "bold " : ""}10px monospace`;
-      ctx.fillText(h.name, hx, hy + (isSelected ? 22 : 18));
-
-      // Score badge
-      ctx.fillStyle = color;
-      ctx.font = "bold 9px monospace";
-      ctx.fillText(`${h.score}`, hx, hy - (isSelected ? 22 : 18));
+      context.fillStyle = "#f4f8fb";
+      context.font = `${selected ? "bold " : ""}13px Segoe UI`;
+      context.fillText(hospital.name, x, y + 31);
+      context.fillStyle = color;
+      context.font = "bold 12px Segoe UI";
+      context.fillText(`${hospital.score || 0}`, x, y - 27);
     });
 
-    // Ambulance
-    const ax = amb.x * W;
-    const ay = amb.y * H;
-
-    // Ambulance glow
-    const g = ctx.createRadialGradient(ax, ay, 0, ax, ay, 22);
-    g.addColorStop(0, "#ff4d6d33");
-    g.addColorStop(1, "transparent");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(ax, ay, 22, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(ax, ay, 12, 0, Math.PI * 2);
-    ctx.fillStyle = "#ff4d6d";
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 12px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🚑", ax, ay);
-
-  }, [tick, selectedHospital, ambulancePos]);
+    const ambulanceX = AMBULANCE.x * width;
+    const ambulanceY = AMBULANCE.y * height;
+    context.beginPath();
+    context.arc(ambulanceX, ambulanceY, 18, 0, Math.PI * 2);
+    context.fillStyle = "#d94150";
+    context.fill();
+    context.fillStyle = "#ffffff";
+    context.font = "bold 18px Segoe UI";
+    context.fillText("A", ambulanceX, ambulanceY);
+  }, [mappedHospitals, selectedHospital, tick]);
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
+    <section className="panel">
+      <div className="panel-header">
         <div>
-          <div style={styles.label}>LIVE ROUTE MAP</div>
-          <div style={styles.title}>Real-Time Navigation</div>
+          <div className="eyebrow">Live route</div>
+          <h2 className="panel-title">Ambulance navigation</h2>
+          <p className="panel-copy">ITO, Delhi to {selectedHospital?.name || "awaiting destination"}</p>
         </div>
-        <div style={styles.etaBadge}>ETA: <strong>{route?.eta || selectedHospital?.eta || "4 min"}</strong></div>
+        <span className="route-eta">
+          <small>Estimated arrival</small>
+          <strong>{route?.eta || selectedHospital?.eta || "--"}</strong>
+        </span>
       </div>
 
-      <div style={styles.mapWrap}>
-        <canvas ref={canvasRef} width={560} height={340} style={styles.canvas} />
-        <div style={styles.legend}>
-          {[["AVAILABLE", "#06d6a0"], ["LIMITED", "#ffd166"], ["FULL", "#ff4d6d"]].map(([label, color]) => (
-            <div key={label} style={styles.legendItem}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-              <span>{label}</span>
-            </div>
-          ))}
-          <div style={styles.legendItem}>
-            <span style={{ color: "#ff4d6d" }}>🚑</span>
-            <span>Ambulance</span>
-          </div>
+      <div className="map-frame">
+        <canvas ref={canvasRef} width="760" height="390" />
+        {!mappedHospitals.length && (
+          <div className="map-empty">Hospital locations will appear after recommendation data loads.</div>
+        )}
+        <div className="map-legend">
+          <span><i style={{ background: "#32d583" }} />Available</span>
+          <span><i style={{ background: "#ffbd4a" }} />Limited</span>
+          <span><i style={{ background: "#ff5d68" }} />Full</span>
         </div>
       </div>
 
-      <div style={styles.routeInfo}>
-        <div style={styles.routeItem}><span style={styles.routeDot}>📍</span> Current Location: ITO, Delhi</div>
-        <div style={styles.routeItem}><span style={styles.routeDot}>🏥</span> Destination: {selectedHospital?.name || hospitals[0]?.name || "Awaiting recommendation"}</div>
-        <div style={styles.routeItem}><span style={styles.routeDot}>🚦</span> Traffic: {route?.trafficLevel || selectedHospital?.traffic || "Low"} — Optimal route active</div>
+      <div className="route-strip">
+        <div><span>Distance</span><strong>{route?.distance || selectedHospital?.distance || "--"}</strong></div>
+        <div><span>Traffic</span><strong>{route?.trafficLevel || selectedHospital?.traffic || "--"}</strong></div>
+        <div><span>Destination readiness</span><strong>{selectedHospital?.status || "Pending"}</strong></div>
       </div>
-    </div>
+    </section>
   );
 }
-
-const styles = {
-  container: { background: "#0d1117", border: "1px solid #ffffff15", borderRadius: 16, padding: 24, fontFamily: "'JetBrains Mono', 'Courier New', monospace", color: "#f0f0f0" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
-  label: { fontSize: 10, letterSpacing: 3, color: "#888", textTransform: "uppercase" },
-  title: { fontSize: 18, fontWeight: 700, color: "#fff", marginTop: 4 },
-  etaBadge: { background: "#00d4ff15", border: "1px solid #00d4ff44", color: "#00d4ff", borderRadius: 8, padding: "6px 14px", fontSize: 12 },
-  mapWrap: { position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #ffffff10" },
-  canvas: { display: "block", width: "100%", height: "auto" },
-  legend: { position: "absolute", bottom: 12, left: 12, display: "flex", flexDirection: "column", gap: 4, background: "#0d111799", backdropFilter: "blur(8px)", borderRadius: 8, padding: "8px 12px" },
-  legendItem: { display: "flex", alignItems: "center", gap: 6, fontSize: 9, color: "#aaa", letterSpacing: 1 },
-  routeInfo: { marginTop: 14, display: "flex", flexDirection: "column", gap: 6 },
-  routeItem: { fontSize: 11, color: "#888", display: "flex", alignItems: "center", gap: 8 },
-  routeDot: { fontSize: 12 },
-};

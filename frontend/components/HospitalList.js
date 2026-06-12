@@ -1,209 +1,159 @@
 import React, { useMemo, useState } from "react";
 
-const mockHospitals = [
-  {
-    id: 1,
-    name: "AIIMS Trauma Centre",
-    distance: "2.1 km",
-    eta: "4 min",
-    icuBeds: 3,
-    ventilators: 2,
-    specialists: ["Cardiology", "Neurology", "Trauma"],
-    score: 94,
-    status: "AVAILABLE",
-    traffic: "Low",
-    waitTime: "< 5 min",
-    prealerted: true,
-  },
-  {
-    id: 2,
-    name: "Safdarjung Hospital",
-    distance: "3.8 km",
-    eta: "9 min",
-    icuBeds: 1,
-    ventilators: 0,
-    specialists: ["General Surgery", "Ortho"],
-    score: 61,
-    status: "LIMITED",
-    traffic: "High",
-    waitTime: "15–20 min",
-    prealerted: false,
-  },
-  {
-    id: 3,
-    name: "RML Hospital",
-    distance: "5.2 km",
-    eta: "13 min",
-    icuBeds: 5,
-    ventilators: 4,
-    specialists: ["Cardiology", "Neuro ICU", "Burns"],
-    score: 87,
-    status: "AVAILABLE",
-    traffic: "Moderate",
-    waitTime: "8 min",
-    prealerted: false,
-  },
-  {
-    id: 4,
-    name: "GTB Hospital",
-    distance: "7.4 km",
-    eta: "19 min",
-    icuBeds: 0,
-    ventilators: 0,
-    specialists: ["General"],
-    score: 22,
-    status: "FULL",
-    traffic: "High",
-    waitTime: "> 30 min",
-    prealerted: false,
-  },
-];
+function resourceState(value) {
+  if (value <= 0) return "resource-critical";
+  if (value <= 2) return "resource-warning";
+  return "resource-available";
+}
 
-function ScoreBar({ score }) {
-  const color = score > 80 ? "#06d6a0" : score > 50 ? "#ffd166" : "#ff4d6d";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, height: 4, background: "#ffffff10", borderRadius: 4, overflow: "hidden" }}>
-        <div style={{ width: `${score}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s ease" }} />
-      </div>
-      <span style={{ fontSize: 13, fontWeight: 800, color, minWidth: 30 }}>{score}</span>
-    </div>
+function specialtyMatch(hospital, specialty) {
+  if (specialty === "general") return true;
+  return hospital.specialists?.some((item) =>
+    String(item).toLowerCase().includes(String(specialty).toLowerCase())
   );
 }
 
-export default function HospitalList({ hospitals = mockHospitals, onSelect, onAlertHospital, onViewRoute, alertingHospitalId }) {
-  const [alertedId, setAlertedId] = useState(1);
-  const sorted = useMemo(() => [...hospitals].sort((a, b) => b.score - a.score), [hospitals]);
+function capacityProbability(hospital) {
+  const predicted = hospital.predictedAvailability?.icuBedsIn15Minutes;
+  const beds = predicted ?? hospital.icuBeds;
+  if (beds >= 4) return "High";
+  if (beds >= 1) return "Moderate";
+  return "Low";
+}
+
+export default function HospitalList({
+  hospitals = [],
+  selectedHospitalId,
+  specialty = "general",
+  onSelect,
+  onAlertHospital,
+  onViewRoute,
+  alertingHospitalId,
+}) {
+  const [alertedId, setAlertedId] = useState(null);
+  const ranked = useMemo(
+    () => [...hospitals].sort((left, right) => right.score - left.score),
+    [hospitals]
+  );
 
   async function handleAlert(hospital) {
-    if (onAlertHospital) {
-      const result = await onAlertHospital(hospital);
-      if (result?.success) {
-        setAlertedId(hospital.id);
-      }
-      return;
-    }
-
-    setTimeout(() => {
-      setAlertedId(hospital.id);
-    }, 1200);
-  }
-
-  function statusColor(s) {
-    return s === "AVAILABLE" ? "#06d6a0" : s === "LIMITED" ? "#ffd166" : "#ff4d6d";
+    const result = await onAlertHospital?.(hospital);
+    if (result?.success) setAlertedId(hospital.id);
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
+    <section className="panel hospital-panel">
+      <div className="panel-header">
         <div>
-          <div style={styles.sectionLabel}>HOSPITAL RECOMMENDATIONS</div>
-          <div style={styles.sectionTitle}>AI-Ranked by Suitability</div>
+          <div className="eyebrow">Hospital capacity</div>
+          <h2 className="panel-title">Live receiving options</h2>
+          <p className="panel-copy">Ranked by clinical fit, capacity, travel time, and emergency load</p>
         </div>
-        <div style={styles.countBadge}>{sorted.length} Nearby</div>
+        <span className="status-pill status-info">{ranked.length} IN RANGE</span>
       </div>
 
-      <div style={styles.list}>
-        {sorted.map((h, idx) => (
-          <div
-            key={h.id}
-            onClick={() => onSelect && onSelect(h)}
-            style={{
-              ...styles.card,
-              border: idx === 0 ? "1px solid #06d6a055" : "1px solid #ffffff10",
-              background: idx === 0 ? "#06d6a008" : "#ffffff04",
-              cursor: "pointer",
-            }}
-          >
-            {idx === 0 && (
-              <div style={styles.topBadge}>⭐ BEST MATCH</div>
-            )}
+      {!ranked.length ? (
+        <div className="loading-state">
+          Checking nearby hospitals for ICU beds, ventilators, and specialty coverage...
+        </div>
+      ) : (
+        <div className="hospital-list">
+          {ranked.map((hospital, index) => {
+            const selected = hospital.id === selectedHospitalId;
+            const matched = specialtyMatch(hospital, specialty);
+            const statusClass =
+              hospital.status === "AVAILABLE"
+                ? "status-success"
+                : hospital.status === "LIMITED"
+                  ? "status-warning"
+                  : "status-critical";
 
-            <div style={styles.cardTop}>
-              <div style={{ flex: 1 }}>
-                <div style={styles.hospitalName}>{h.name}</div>
-                <div style={styles.hospitalMeta}>
-                  📍 {h.distance} &nbsp;|&nbsp; 🕐 ETA {h.eta} &nbsp;|&nbsp; 🚦 Traffic: {h.traffic}
-                </div>
-              </div>
-              <div style={{ ...styles.statusPill, color: statusColor(h.status), border: `1px solid ${statusColor(h.status)}44`, background: statusColor(h.status) + "11" }}>
-                {h.status}
-              </div>
-            </div>
-
-            <div style={styles.resourceRow}>
-              <div style={styles.resource}>
-                <span style={styles.resourceVal}>{h.icuBeds}</span>
-                <span style={styles.resourceLabel}>ICU Beds</span>
-              </div>
-              <div style={styles.divider} />
-              <div style={styles.resource}>
-                <span style={styles.resourceVal}>{h.ventilators}</span>
-                <span style={styles.resourceLabel}>Ventilators</span>
-              </div>
-              <div style={styles.divider} />
-              <div style={styles.resource}>
-                <span style={styles.resourceVal}>{h.waitTime}</span>
-                <span style={styles.resourceLabel}>Wait Time</span>
-              </div>
-            </div>
-
-            <div style={styles.specialists}>
-              {h.specialists.map((s) => (
-                <span key={s} style={styles.specTag}>{s}</span>
-              ))}
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <div style={styles.scoreLabel}>Suitability Score</div>
-              <ScoreBar score={h.score} />
-            </div>
-
-            <div style={styles.cardActions}>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleAlert(h); }}
-                style={{
-                  ...styles.alertBtn,
-                  background: alertedId === h.id ? "#06d6a022" : "#ffffff08",
-                  color: alertedId === h.id ? "#06d6a0" : "#aaa",
-                  border: alertedId === h.id ? "1px solid #06d6a0" : "1px solid #ffffff20",
-                }}
+            return (
+              <article
+                className={`hospital-card ${selected ? "hospital-card-selected" : ""}`}
+                key={hospital.id}
+                onClick={() => onSelect?.(hospital)}
               >
-                {alertingHospitalId === h.id ? "⟳ Alerting..." : alertedId === h.id ? "✓ Pre-Alerted" : "⚡ Alert Hospital"}
-              </button>
-              <button style={styles.routeBtn} onClick={(e) => { e.stopPropagation(); onViewRoute && onViewRoute(h); }}>
-                🗺 View Route
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+                <div className="hospital-card-heading">
+                  <div>
+                    <div className="hospital-rank">
+                      {index === 0 ? "Recommended destination" : `Alternative ${index}`}
+                    </div>
+                    <h3>{hospital.name}</h3>
+                  </div>
+                  <span className={`status-pill ${statusClass}`}>{hospital.status}</span>
+                </div>
+
+                <div className="hospital-route-summary">
+                  <div><span>Distance</span><strong>{hospital.distance}</strong></div>
+                  <div><span>ETA</span><strong>{hospital.eta}</strong></div>
+                  <div><span>Score</span><strong>{hospital.score}/100</strong></div>
+                </div>
+
+                <div className="capacity-grid">
+                  <div className={resourceState(hospital.icuBeds)}>
+                    <span>ICU beds</span>
+                    <strong>{hospital.icuBeds}</strong>
+                  </div>
+                  <div className={resourceState(hospital.ventilators)}>
+                    <span>Ventilators</span>
+                    <strong>{hospital.ventilators}</strong>
+                  </div>
+                  <div>
+                    <span>Bed probability</span>
+                    <strong>{capacityProbability(hospital)}</strong>
+                  </div>
+                </div>
+
+                <div className="specialty-row">
+                  <span className={matched ? "match-chip match-positive" : "match-chip match-negative"}>
+                    {matched ? `${specialty} support confirmed` : `${specialty} match not confirmed`}
+                  </span>
+                  <span className="match-chip">{hospital.traffic || "Unknown"} traffic</span>
+                  <span className="match-chip">{hospital.waitTime || "Wait unknown"}</span>
+                </div>
+
+                <p className="hospital-reason">
+                  {hospital.reason ||
+                    (index === 0
+                      ? `Recommended hospital has ${specialty} support and critical-care access.`
+                      : hospital.icuBeds <= 0
+                        ? "Not selected because no ICU bed is currently available."
+                        : `Lower suitability than ${ranked[0].name} for this emergency.`)}
+                </p>
+
+                <div className="hospital-actions">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onViewRoute?.(hospital);
+                    }}
+                  >
+                    View Route
+                  </button>
+                  <button
+                    type="button"
+                    className={`button ${alertedId === hospital.id ? "" : "button-success"}`}
+                    disabled={alertingHospitalId === hospital.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleAlert(hospital);
+                    }}
+                  >
+                    {alertingHospitalId === hospital.id
+                      ? "Sending..."
+                      : alertedId === hospital.id
+                        ? "Alert Sent"
+                        : "Send Hospital Alert"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
-
-const styles = {
-  container: { background: "#0d1117", border: "1px solid #ffffff15", borderRadius: 16, padding: 24, fontFamily: "'JetBrains Mono', 'Courier New', monospace", color: "#f0f0f0" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  sectionLabel: { fontSize: 10, letterSpacing: 3, color: "#888", textTransform: "uppercase" },
-  sectionTitle: { fontSize: 18, fontWeight: 700, color: "#fff", marginTop: 4 },
-  countBadge: { background: "#ffffff0a", border: "1px solid #ffffff15", borderRadius: 20, padding: "4px 12px", fontSize: 11, color: "#888" },
-  list: { display: "flex", flexDirection: "column", gap: 12 },
-  card: { borderRadius: 14, padding: 18, position: "relative", transition: "all 0.2s" },
-  topBadge: { position: "absolute", top: 12, right: 12, fontSize: 9, fontWeight: 700, color: "#06d6a0", letterSpacing: 2 },
-  cardTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
-  hospitalName: { fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 4 },
-  hospitalMeta: { fontSize: 10, color: "#666", letterSpacing: 0.5 },
-  statusPill: { padding: "3px 10px", borderRadius: 20, fontSize: 9, fontWeight: 700, letterSpacing: 2, whiteSpace: "nowrap" },
-  resourceRow: { display: "flex", gap: 0, marginBottom: 12, background: "#ffffff05", borderRadius: 10, overflow: "hidden" },
-  resource: { flex: 1, padding: "10px 0", textAlign: "center" },
-  resourceVal: { display: "block", fontSize: 18, fontWeight: 800, color: "#fff" },
-  resourceLabel: { display: "block", fontSize: 8, color: "#666", letterSpacing: 2, textTransform: "uppercase", marginTop: 2 },
-  divider: { width: 1, background: "#ffffff10", margin: "8px 0" },
-  specialists: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  specTag: { background: "#00d4ff11", border: "1px solid #00d4ff22", color: "#00d4ff", borderRadius: 20, padding: "2px 10px", fontSize: 9, letterSpacing: 1 },
-  scoreLabel: { fontSize: 9, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 },
-  cardActions: { display: "flex", gap: 8, marginTop: 4 },
-  alertBtn: { flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.3s", letterSpacing: 1 },
-  routeBtn: { flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#ffffff08", border: "1px solid #ffffff20", color: "#aaa", letterSpacing: 1 },
-};
