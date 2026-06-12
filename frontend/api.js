@@ -175,13 +175,17 @@ export async function broadcastSOS(caseData) {
 export async function triggerAutonomousReroute(caseData) {
   if (MOCK_MODE) {
     await delay(500);
-    const hospitals = MOCK_HOSPITALS.map((hospital) =>
-      hospital.name.includes("AIIMS")
-        ? { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 }
-        : hospital.name.includes("Metro")
-          ? { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 }
-          : hospital
-    ).sort((a, b) => b.score - a.score);
+    const hospitals = MOCK_HOSPITALS.map((hospital) => {
+      if (hospital.name.includes("AIIMS")) {
+        return { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 };
+      }
+
+      if (hospital.name.includes("Metro")) {
+        return { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 };
+      }
+
+      return hospital;
+    }).sort((a, b) => b.score - a.score);
 
     return {
       success: true,

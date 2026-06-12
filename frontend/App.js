@@ -4,10 +4,24 @@ import HospitalList from "./components/HospitalList";
 import MapView from "./components/MapView";
 import Buttons from "./components/Buttons";
 import AIReasoningPanel from "./components/AIReasoningPanel";
-import { broadcastSOS, getHospitalRecommendations, getRoute, getSeverityScore, sendPreAlert, submitVitals, triggerAutonomousReroute } from "./api";
+import {
+  broadcastSOS,
+  getHospitalRecommendations,
+  getRoute,
+  getSeverityScore,
+  sendPreAlert,
+  submitVitals,
+  triggerAutonomousReroute,
+} from "./api";
 
 const CASE_ID = "EMRG-2024-441";
 const AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
+const AUTONOMOUS_REROUTE_DELAY_MS = 5000;
+const REROUTE_STATUS_COPY = {
+  monitoring: "Monitoring live hospital capacity",
+  evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
+  rerouted: "Autonomous reroute active",
+};
 
 function inferSpecialty(vitals) {
   if (!vitals) return "general";
@@ -90,12 +104,11 @@ function CaseSummary() {
 }
 
 function AutonomousReroutePanel({ event, status, destination }) {
-  const statusCopy = {
-    monitoring: "Monitoring live hospital capacity",
-    evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
-    rerouted: `Autonomous reroute active: ${destination?.name || "new destination selected"}`,
-  };
   const accent = status === "rerouted" ? "#06d6a0" : status === "evaluating" ? "#ffd166" : "#00d4ff";
+  const fallbackMessage =
+    status === "rerouted" && destination?.name
+      ? `${REROUTE_STATUS_COPY.rerouted}: ${destination.name}`
+      : REROUTE_STATUS_COPY[status];
 
   return (
     <div style={{ ...rerouteStyles.container, borderColor: `${accent}55` }}>
@@ -114,7 +127,7 @@ function AutonomousReroutePanel({ event, status, destination }) {
         <div style={{ ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" }}>3. Switch recommendation without human click</div>
       </div>
       <div style={rerouteStyles.message}>
-        {event?.trigger || statusCopy[status]}
+        {event?.trigger || fallbackMessage}
         {event?.agentAction ? ` ${event.agentAction}` : ""}
       </div>
     </div>
@@ -138,6 +151,22 @@ export default function App() {
     return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
   }, [hospitals, selectedHospital]);
 
+  function chooseRerouteDestination(response) {
+    return (
+      response.recommendation ||
+      response.hospitals?.find((hospital) => hospital.name === "Metro Hospital") ||
+      response.hospitals?.[0] ||
+      null
+    );
+  }
+
+  function shouldStartAutonomousReroute(preferredHospital) {
+    return (
+      !autonomousRerouteStartedRef.current &&
+      preferredHospital?.name?.toLowerCase().includes("aiims")
+    );
+  }
+
   async function runAutonomousReroute(vitals, severityValue, specialty) {
     if (autonomousRerouteStartedRef.current === "complete") {
       return;
@@ -154,11 +183,7 @@ export default function App() {
       patientVitals: vitals,
     });
 
-    const nextHospital =
-      rerouteResponse.recommendation ||
-      rerouteResponse.hospitals?.find((hospital) => hospital.name === "Metro Hospital") ||
-      rerouteResponse.hospitals?.[0] ||
-      null;
+    const nextHospital = chooseRerouteDestination(rerouteResponse);
 
     setRerouteEvent(rerouteResponse.event);
     setHospitals(rerouteResponse.hospitals || []);
@@ -169,6 +194,17 @@ export default function App() {
       const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
       setRoute(routeResponse.route);
     }
+  }
+
+  function scheduleAutonomousReroute(vitals, severityValue, specialty) {
+    autonomousRerouteStartedRef.current = "scheduled";
+    autonomousRerouteTimerRef.current = setTimeout(() => {
+      runAutonomousReroute(vitals, severityValue, specialty).catch((error) => {
+        console.error("Autonomous reroute failed", error);
+        setRerouteStatus("monitoring");
+        autonomousRerouteStartedRef.current = false;
+      });
+    }, AUTONOMOUS_REROUTE_DELAY_MS);
   }
 
   useEffect(() => {
@@ -211,18 +247,8 @@ export default function App() {
           if (!active) return;
           setRoute(routeResponse.route);
 
-          if (
-            !autonomousRerouteStartedRef.current &&
-            preferredHospital.name?.toLowerCase().includes("aiims")
-          ) {
-            autonomousRerouteStartedRef.current = "scheduled";
-            autonomousRerouteTimerRef.current = setTimeout(() => {
-              runAutonomousReroute(latestVitals, severityResponse.severity, specialty).catch((error) => {
-                console.error("Autonomous reroute failed", error);
-                setRerouteStatus("monitoring");
-                autonomousRerouteStartedRef.current = false;
-              });
-            }, 5000);
+          if (shouldStartAutonomousReroute(preferredHospital)) {
+            scheduleAutonomousReroute(latestVitals, severityResponse.severity, specialty);
           }
         }
       } catch (error) {

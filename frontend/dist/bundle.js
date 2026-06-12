@@ -23726,9 +23726,15 @@
   async function triggerAutonomousReroute(caseData) {
     if (MOCK_MODE) {
       await delay(500);
-      const hospitals = MOCK_HOSPITALS.map(
-        (hospital) => hospital.name.includes("AIIMS") ? { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 } : hospital.name.includes("Metro") ? { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 } : hospital
-      ).sort((a, b) => b.score - a.score);
+      const hospitals = MOCK_HOSPITALS.map((hospital) => {
+        if (hospital.name.includes("AIIMS")) {
+          return { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 };
+        }
+        if (hospital.name.includes("Metro")) {
+          return { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 };
+        }
+        return hospital;
+      }).sort((a, b) => b.score - a.score);
       return {
         success: true,
         event: {
@@ -24643,6 +24649,12 @@
   // App.js
   var CASE_ID = "EMRG-2024-441";
   var AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
+  var AUTONOMOUS_REROUTE_DELAY_MS = 5e3;
+  var REROUTE_STATUS_COPY = {
+    monitoring: "Monitoring live hospital capacity",
+    evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
+    rerouted: "Autonomous reroute active"
+  };
   function inferSpecialty(vitals) {
     if (!vitals) return "general";
     if (vitals.heartRate > 130 || vitals.spo2 < 92) return "cardiology";
@@ -24664,13 +24676,9 @@
     return /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.container }, /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.label }, "CASE SUMMARY"), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Case ID"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "#EMRG-2024-441")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Incident Type"), /* @__PURE__ */ import_react6.default.createElement("strong", { style: { color: "#ff4d6d" } }, "Cardiac Arrest")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Age / Gender"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "52 / Male")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Crew"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "Dr. Mehta + EMT Raza")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Dispatch Time"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "17:01:14")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "On Scene At"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "17:04:28")));
   }
   function AutonomousReroutePanel({ event, status, destination }) {
-    const statusCopy = {
-      monitoring: "Monitoring live hospital capacity",
-      evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
-      rerouted: `Autonomous reroute active: ${destination?.name || "new destination selected"}`
-    };
     const accent = status === "rerouted" ? "#06d6a0" : status === "evaluating" ? "#ffd166" : "#00d4ff";
-    return /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.container, borderColor: `${accent}55` } }, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.header }, /* @__PURE__ */ import_react6.default.createElement("div", null, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.label }, "AUTONOMOUS RE-ROUTING SIMULATION"), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.title }, "Agent Decision Loop")), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.badge, color: accent, borderColor: `${accent}55`, background: `${accent}12` } }, status.toUpperCase())), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.timeline }, /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: "#00d4ff" } }, "1. Monitor route and hospital capacity"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "monitoring" ? "#555" : "#ffd166" } }, "2. Detect AIIMS full-capacity event"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" } }, "3. Switch recommendation without human click")), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.message }, event?.trigger || statusCopy[status], event?.agentAction ? ` ${event.agentAction}` : ""));
+    const fallbackMessage = status === "rerouted" && destination?.name ? `${REROUTE_STATUS_COPY.rerouted}: ${destination.name}` : REROUTE_STATUS_COPY[status];
+    return /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.container, borderColor: `${accent}55` } }, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.header }, /* @__PURE__ */ import_react6.default.createElement("div", null, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.label }, "AUTONOMOUS RE-ROUTING SIMULATION"), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.title }, "Agent Decision Loop")), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.badge, color: accent, borderColor: `${accent}55`, background: `${accent}12` } }, status.toUpperCase())), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.timeline }, /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: "#00d4ff" } }, "1. Monitor route and hospital capacity"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "monitoring" ? "#555" : "#ffd166" } }, "2. Detect AIIMS full-capacity event"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" } }, "3. Switch recommendation without human click")), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.message }, event?.trigger || fallbackMessage, event?.agentAction ? ` ${event.agentAction}` : ""));
   }
   function App() {
     const [selectedHospital, setSelectedHospital] = (0, import_react6.useState)(null);
@@ -24688,6 +24696,12 @@
       if (!hospitals.length) return selectedHospital;
       return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
     }, [hospitals, selectedHospital]);
+    function chooseRerouteDestination(response) {
+      return response.recommendation || response.hospitals?.find((hospital) => hospital.name === "Metro Hospital") || response.hospitals?.[0] || null;
+    }
+    function shouldStartAutonomousReroute(preferredHospital) {
+      return !autonomousRerouteStartedRef.current && preferredHospital?.name?.toLowerCase().includes("aiims");
+    }
     async function runAutonomousReroute(vitals, severityValue, specialty) {
       if (autonomousRerouteStartedRef.current === "complete") {
         return;
@@ -24701,7 +24715,7 @@
         location: AMBULANCE_LOCATION,
         patientVitals: vitals
       });
-      const nextHospital = rerouteResponse.recommendation || rerouteResponse.hospitals?.find((hospital) => hospital.name === "Metro Hospital") || rerouteResponse.hospitals?.[0] || null;
+      const nextHospital = chooseRerouteDestination(rerouteResponse);
       setRerouteEvent(rerouteResponse.event);
       setHospitals(rerouteResponse.hospitals || []);
       setSelectedHospital(nextHospital);
@@ -24710,6 +24724,16 @@
         const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
         setRoute(routeResponse.route);
       }
+    }
+    function scheduleAutonomousReroute(vitals, severityValue, specialty) {
+      autonomousRerouteStartedRef.current = "scheduled";
+      autonomousRerouteTimerRef.current = setTimeout(() => {
+        runAutonomousReroute(vitals, severityValue, specialty).catch((error) => {
+          console.error("Autonomous reroute failed", error);
+          setRerouteStatus("monitoring");
+          autonomousRerouteStartedRef.current = false;
+        });
+      }, AUTONOMOUS_REROUTE_DELAY_MS);
     }
     (0, import_react6.useEffect)(() => {
       if (!latestVitals) {
@@ -24738,15 +24762,8 @@
             const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
             if (!active) return;
             setRoute(routeResponse.route);
-            if (!autonomousRerouteStartedRef.current && preferredHospital.name?.toLowerCase().includes("aiims")) {
-              autonomousRerouteStartedRef.current = "scheduled";
-              autonomousRerouteTimerRef.current = setTimeout(() => {
-                runAutonomousReroute(latestVitals, severityResponse.severity, specialty).catch((error) => {
-                  console.error("Autonomous reroute failed", error);
-                  setRerouteStatus("monitoring");
-                  autonomousRerouteStartedRef.current = false;
-                });
-              }, 5e3);
+            if (shouldStartAutonomousReroute(preferredHospital)) {
+              scheduleAutonomousReroute(latestVitals, severityResponse.severity, specialty);
             }
           }
         } catch (error) {

@@ -239,36 +239,47 @@ function getReasoningStrength(score, highThreshold, mediumThreshold) {
   return 'weak';
 }
 
-function buildAiReasoning({ hospital, scoring = {}, mlScore = {}, context = {}, rank }) {
-  const prediction = scoring.prediction || hospital.predictedAvailability || {};
-  const scoreBreakdown = {
+function getRequiredResourceSummary(severity) {
+  if (severity === 'high') {
+    return 'ICU bed + ventilator readiness';
+  }
+
+  if (severity === 'medium') {
+    return 'ICU bed readiness';
+  }
+
+  return 'nearest stable receiving facility';
+}
+
+function getReasoningScores(scoring = {}, mlScore = {}) {
+  return {
     specialty: Number(scoring.specialtyScore ?? mlScore.specialtyScore ?? 0),
     resources: Number(scoring.severityResourceScore ?? mlScore.resourceScore ?? 0),
     availability: Number(scoring.bedAvailabilityScore ?? 0),
     route: Number(scoring.distanceScore ?? mlScore.distanceScore ?? 0),
   };
-  const totalScore = Number(scoring.combinedScore ?? scoring.totalScore ?? mlScore.totalScore ?? 0);
-  const specialtyMatch = hospital.specialties.includes(context.requiredSpecialty);
-  const routeMinutes = scoring.travelTimeMinutes ?? scoring.estimatedTravelTimeMinutes;
-  const distanceKm = scoring.distanceKm ?? mlScore.distanceKm;
-  const requiredResources =
-    context.severity === 'high'
-      ? 'ICU bed + ventilator readiness'
-      : context.severity === 'medium'
-        ? 'ICU bed readiness'
-        : 'nearest stable receiving facility';
-  const evidence = [
+}
+
+function buildReasoningEvidence({ hospital, context, prediction, specialtyMatch, routeMinutes, distanceKm }) {
+  const specialty = toTitleCase(context.requiredSpecialty);
+  const routeEvidence =
+    routeMinutes != null && distanceKm != null
+      ? `Route estimate: ${Math.max(1, Math.round(routeMinutes))} min across ${Number(distanceKm).toFixed(1)} km.`
+      : 'Route estimate is not available yet.';
+
+  return [
     specialtyMatch
-      ? `Specialty match: ${toTitleCase(context.requiredSpecialty)} is available.`
-      : `Specialty gap: ${toTitleCase(context.requiredSpecialty)} is not listed, so suitability is reduced.`,
+      ? `Specialty match: ${specialty} is available.`
+      : `Specialty gap: ${specialty} is not listed, so suitability is reduced.`,
     `Resources now: ${hospital.icuBeds} ICU beds and ${hospital.ventilators} ventilators.`,
     `Predicted in 15 min: ${prediction.icuBedsIn15Minutes ?? 'unknown'} ICU beds and ${
       prediction.ventilatorsIn15Minutes ?? 'unknown'
     } ventilators.`,
-    routeMinutes != null && distanceKm != null
-      ? `Route estimate: ${Math.max(1, Math.round(routeMinutes))} min across ${Number(distanceKm).toFixed(1)} km.`
-      : 'Route estimate is not available yet.',
+    routeEvidence,
   ];
+}
+
+function buildReasoningRisks({ hospital, context, specialtyMatch, trafficMultiplier }) {
   const risks = [];
 
   if (!specialtyMatch && context.requiredSpecialty !== 'general') {
@@ -283,13 +294,56 @@ function buildAiReasoning({ hospital, scoring = {}, mlScore = {}, context = {}, 
     risks.push('Ventilator availability is below the critical-case target.');
   }
 
-  if ((scoring.trafficMultiplier || 1) >= 1.45) {
+  if ((trafficMultiplier || 1) >= 1.45) {
     risks.push('Traffic may materially delay arrival.');
   }
 
-  if (risks.length === 0) {
-    risks.push('No major blocking risk detected from live capacity, specialty, or route data.');
-  }
+  return risks.length > 0
+    ? risks
+    : ['No major blocking risk detected from live capacity, specialty, or route data.'];
+}
+
+function buildReasoningFactors({ hospital, context, prediction, routeMinutes, trafficMultiplier, specialtyMatch, scores }) {
+  const specialty = toTitleCase(context.requiredSpecialty);
+
+  return [
+    {
+      label: 'Specialty fit',
+      strength: specialtyMatch ? 'strong' : 'weak',
+      score: scores.specialty,
+      note: specialtyMatch ? `Matches ${specialty} requirement.` : `Does not directly match ${specialty}.`,
+    },
+    {
+      label: 'Critical resources',
+      strength: getReasoningStrength(scores.resources, 20, 10),
+      score: scores.resources,
+      note: `${hospital.icuBeds} ICU beds, ${hospital.ventilators} ventilators available now.`,
+    },
+    {
+      label: 'Bed forecast',
+      strength: getReasoningStrength(scores.availability, 14, 7),
+      score: scores.availability,
+      note: `15-min confidence is ${prediction.confidence || 'unknown'}.`,
+    },
+    {
+      label: 'Route burden',
+      strength: getReasoningStrength(scores.route, 10, 5),
+      score: scores.route,
+      note:
+        routeMinutes != null
+          ? `${Math.max(1, Math.round(routeMinutes))} min ETA with ${getTrafficLabel(trafficMultiplier || 1)} traffic.`
+          : 'ETA pending.',
+    },
+  ];
+}
+
+function buildAiReasoning({ hospital, scoring = {}, mlScore = {}, context = {}, rank }) {
+  const prediction = scoring.prediction || hospital.predictedAvailability || {};
+  const scores = getReasoningScores(scoring, mlScore);
+  const totalScore = Number(scoring.combinedScore ?? scoring.totalScore ?? mlScore.totalScore ?? 0);
+  const specialtyMatch = hospital.specialties.includes(context.requiredSpecialty);
+  const routeMinutes = scoring.travelTimeMinutes ?? scoring.estimatedTravelTimeMinutes;
+  const distanceKm = scoring.distanceKm ?? mlScore.distanceKm;
 
   return {
     model: 'CareRoute triage reasoning v1',
@@ -299,37 +353,30 @@ function buildAiReasoning({ hospital, scoring = {}, mlScore = {}, context = {}, 
       rank === 1
         ? `${hospital.name} is ranked first because it offers the best combined fit for specialty, capacity, predicted availability, and route time.`
         : `${hospital.name} remains in the ranked set, but one or more factors make it less suitable than the top recommendation.`,
-    requiredResources,
-    factors: [
-      {
-        label: 'Specialty fit',
-        strength: specialtyMatch ? 'strong' : 'weak',
-        score: scoreBreakdown.specialty,
-        note: specialtyMatch
-          ? `Matches ${toTitleCase(context.requiredSpecialty)} requirement.`
-          : `Does not directly match ${toTitleCase(context.requiredSpecialty)}.`,
-      },
-      {
-        label: 'Critical resources',
-        strength: getReasoningStrength(scoreBreakdown.resources, 20, 10),
-        score: scoreBreakdown.resources,
-        note: `${hospital.icuBeds} ICU beds, ${hospital.ventilators} ventilators available now.`,
-      },
-      {
-        label: 'Bed forecast',
-        strength: getReasoningStrength(scoreBreakdown.availability, 14, 7),
-        score: scoreBreakdown.availability,
-        note: `15-min confidence is ${prediction.confidence || 'unknown'}.`,
-      },
-      {
-        label: 'Route burden',
-        strength: getReasoningStrength(scoreBreakdown.route, 10, 5),
-        score: scoreBreakdown.route,
-        note: routeMinutes != null ? `${Math.max(1, Math.round(routeMinutes))} min ETA with ${getTrafficLabel(scoring.trafficMultiplier || 1)} traffic.` : 'ETA pending.',
-      },
-    ],
-    evidence,
-    risks,
+    requiredResources: getRequiredResourceSummary(context.severity),
+    factors: buildReasoningFactors({
+      hospital,
+      context,
+      prediction,
+      routeMinutes,
+      trafficMultiplier: scoring.trafficMultiplier,
+      specialtyMatch,
+      scores,
+    }),
+    evidence: buildReasoningEvidence({
+      hospital,
+      context,
+      prediction,
+      specialtyMatch,
+      routeMinutes,
+      distanceKm,
+    }),
+    risks: buildReasoningRisks({
+      hospital,
+      context,
+      specialtyMatch,
+      trafficMultiplier: scoring.trafficMultiplier,
+    }),
   };
 }
 

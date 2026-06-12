@@ -30,6 +30,34 @@ const SEVERITY_RESOURCE_PROFILES = {
   },
 };
 
+const AUTONOMOUS_REROUTE_EVENT = {
+  type: 'autonomous-reroute',
+  trigger: 'AIIMS Trauma Centre reached full critical-care capacity mid-route.',
+  agentAction: 'Re-evaluated hospital scores and rerouted without human input.',
+  preferredHospitalName: 'Metro Hospital',
+};
+
+const REROUTE_SCENARIO_CAPACITY = {
+  aiimsFull: {
+    status: 'full',
+    icuBeds: 0,
+    ventilators: 0,
+    bedTrendPer15Min: -2,
+  },
+  metroReady: {
+    status: 'available',
+    minimumIcuBeds: 9,
+    minimumVentilators: 6,
+    bedTrendPer15Min: 2,
+  },
+  nearbyConstrained: {
+    status: 'limited',
+    maximumIcuBeds: 1,
+    maximumVentilators: 1,
+    bedTrendPer15Min: -1,
+  },
+};
+
 function createCommunicationBus() {
   return new EventEmitter();
 }
@@ -206,6 +234,38 @@ function estimateRequiredResources(severity) {
   }
 
   return { icuBeds: 0, ventilators: 0 };
+}
+
+function getAutonomousRerouteUpdate(hospital) {
+  const name = String(hospital.name).toLowerCase();
+
+  if (name.includes('aiims')) {
+    return REROUTE_SCENARIO_CAPACITY.aiimsFull;
+  }
+
+  if (name.includes('metro')) {
+    return {
+      status: REROUTE_SCENARIO_CAPACITY.metroReady.status,
+      icuBeds: Math.max(hospital.icuBeds, REROUTE_SCENARIO_CAPACITY.metroReady.minimumIcuBeds),
+      ventilators: Math.max(hospital.ventilators, REROUTE_SCENARIO_CAPACITY.metroReady.minimumVentilators),
+      bedTrendPer15Min: REROUTE_SCENARIO_CAPACITY.metroReady.bedTrendPer15Min,
+    };
+  }
+
+  const constrainedHospitals = ['apollo', 'rml', 'fortis', 'city'];
+  if (constrainedHospitals.some((keyword) => name.includes(keyword))) {
+    return {
+      status: hospital.status === 'full' ? 'full' : REROUTE_SCENARIO_CAPACITY.nearbyConstrained.status,
+      icuBeds: Math.min(hospital.icuBeds, REROUTE_SCENARIO_CAPACITY.nearbyConstrained.maximumIcuBeds),
+      ventilators: Math.min(
+        hospital.ventilators,
+        REROUTE_SCENARIO_CAPACITY.nearbyConstrained.maximumVentilators
+      ),
+      bedTrendPer15Min: REROUTE_SCENARIO_CAPACITY.nearbyConstrained.bedTrendPer15Min,
+    };
+  }
+
+  return null;
 }
 
 function createSimulationEngine(initialHospitals, communicationBus = createCommunicationBus()) {
@@ -412,36 +472,7 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
     const updates = [];
 
     hospitalState.forEach((hospital) => {
-      const normalizedName = String(hospital.name).toLowerCase();
-      let update = null;
-
-      if (normalizedName.includes('aiims')) {
-        update = {
-          status: 'full',
-          icuBeds: 0,
-          ventilators: 0,
-          bedTrendPer15Min: -2,
-        };
-      } else if (normalizedName.includes('metro')) {
-        update = {
-          status: 'available',
-          icuBeds: Math.max(hospital.icuBeds, 9),
-          ventilators: Math.max(hospital.ventilators, 6),
-          bedTrendPer15Min: 2,
-        };
-      } else if (
-        normalizedName.includes('apollo') ||
-        normalizedName.includes('rml') ||
-        normalizedName.includes('fortis') ||
-        normalizedName.includes('city')
-      ) {
-        update = {
-          status: hospital.status === 'full' ? 'full' : 'limited',
-          icuBeds: Math.min(hospital.icuBeds, 1),
-          ventilators: Math.min(hospital.ventilators, 1),
-          bedTrendPer15Min: -1,
-        };
-      }
+      const update = getAutonomousRerouteUpdate(hospital);
 
       if (!update) {
         return;
@@ -465,10 +496,7 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
     });
 
     return {
-      type: 'autonomous-reroute',
-      trigger: 'AIIMS Trauma Centre reached full critical-care capacity mid-route.',
-      agentAction: 'Re-evaluated hospital scores and rerouted without human input.',
-      preferredHospitalName: 'Metro Hospital',
+      ...AUTONOMOUS_REROUTE_EVENT,
       updates,
       timestamp: new Date().toISOString(),
     };
