@@ -198,6 +198,28 @@ export async function submitVitals(caseId, vitals) {
   });
 }
 
+/**
+ * Upload a short browser recording and return its transcript plus parsed vitals.
+ */
+export async function transcribeVitalsAudio(audioBlob) {
+  const extension = audioBlob.type.includes("ogg") ? "ogg" : "webm";
+  const res = await fetch(`${BASE_URL}/voice/transcribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": audioBlob.type || "audio/webm",
+      "X-Audio-Filename": `patient-vitals.${extension}`,
+    },
+    body: audioBlob,
+  });
+
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.error || `Transcription failed (HTTP ${res.status})`);
+  }
+
+  return payload;
+}
+
 // ──────────────────────────────────────────
 // Routing APIs
 // ──────────────────────────────────────────
@@ -274,6 +296,7 @@ export default {
   broadcastSOS,
   getLatestVitals,
   submitVitals,
+  transcribeVitalsAudio,
   getRoute,
   getSeverityScore,
 };

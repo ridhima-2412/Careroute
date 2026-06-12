@@ -49,6 +49,7 @@ smart-ambulance/
 * 🔄 Real-time simulation of hospital capacity
 * 📊 Predictive bed availability
 * 📡 Communication between ambulance & hospital
+* 🎙️ Voice-assisted vitals capture with automatic form filling
 
 ---
 
@@ -82,6 +83,40 @@ npm start
 Frontend runs on :
   http://localhost:8000
 ```
+
+### Voice Input Setup
+
+Voice input works in **demo mode by default**, so no API key is required for a
+hackathon presentation. The browser records a short clip, the backend returns a
+sample emergency transcript, and the parsed values fill the vitals dashboard.
+
+For real speech-to-text, add an OpenAI API key before starting the backend:
+
+```powershell
+$env:OPENAI_API_KEY="your-api-key"
+npm run backend
+```
+
+Optional voice environment variables:
+
+```powershell
+# Force the presentation-safe mock even when an API key exists
+$env:VOICE_TRANSCRIPTION_MODE="mock"
+
+# Override the mock sentence used by the demo
+$env:MOCK_VOICE_TRANSCRIPT="Patient is unconscious, heart rate 130, oxygen level 82, blood pressure 90 over 60, temperature 101, possible cardiac emergency."
+
+# Override the transcription model
+$env:OPENAI_TRANSCRIPTION_MODEL="gpt-4o-mini-transcribe"
+```
+
+Allow microphone permission when prompted. Microphone capture requires
+`localhost` or an HTTPS deployment in modern browsers. Click **Speak Vitals**,
+dictate the patient status, then click again to stop (or wait 10 seconds).
+
+The backend extracts heart rate, SpO2, blood pressure, respiratory rate,
+temperature, consciousness/GCS, and the suspected emergency type. Fahrenheit
+temperatures such as `101` are converted to Celsius for the dashboard.
 
 
 ---
