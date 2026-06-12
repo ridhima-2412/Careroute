@@ -9,6 +9,8 @@ const { calculateRecommendationScore } = require(path.join(
   'recommendation'
 ));
 const { createSimulationEngine } = require('./simulation');
+const { transcribeAudio } = require('./voiceTranscription');
+const { parseVitals } = require('./vitalsParser');
 
 const DEFAULT_LOCATION = { lat: 28.6139, lng: 77.209 };
 const FALLBACK_HOSPITAL_LOCATIONS = [
@@ -440,6 +442,34 @@ router.post('/vitals/:caseId', (req, res) => {
     vitals: req.body,
   });
 });
+
+router.post(
+  '/voice/transcribe',
+  express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }),
+  async (req, res, next) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({
+          error: 'A non-empty audio recording is required.',
+        });
+      }
+
+      const mimeType = req.get('content-type') || 'audio/webm';
+      const filename = req.get('x-audio-filename') || 'patient-vitals.webm';
+      const transcription = await transcribeAudio(req.body, { mimeType, filename });
+      const parsed = parseVitals(transcription.transcript);
+
+      res.status(200).json({
+        success: true,
+        transcript: transcription.transcript,
+        transcriptionMode: transcription.mode,
+        ...parsed,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.post('/logic/severity', (req, res) => {
   const vitals = req.body.vitals || {};
