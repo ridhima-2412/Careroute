@@ -235,20 +235,6 @@ export default function App() {
               patientName="Patient #EMRG-441 - Ramesh K."
               onVitalsChange={setLatestVitals}
             />
-          </div>
-
-          <div className="dashboard-secondary">
-            <RecommendationReason
-              hospital={activeHospital}
-              alternatives={alternatives}
-              specialty={specialty}
-              severity={severity}
-              rerouteEvent={rerouteEvent}
-            />
-            <MapView selectedHospital={activeHospital} hospitals={hospitals} route={route} />
-          </div>
-
-          <div className="dashboard-controls">
             <Buttons
               onAction={handleAction}
               disabled={!latestVitals}
@@ -260,6 +246,17 @@ export default function App() {
               alertStatus={alertStatus}
               rerouteStatus={rerouteStatus}
             />
+          </div>
+
+          <div className="dashboard-secondary">
+            <RecommendationReason
+              hospital={activeHospital}
+              alternatives={alternatives}
+              specialty={specialty}
+              severity={severity}
+              rerouteEvent={rerouteEvent}
+            />
+            <MapView selectedHospital={activeHospital} hospitals={hospitals} route={route} />
           </div>
 
           <div className="dashboard-hospitals">

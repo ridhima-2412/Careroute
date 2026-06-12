@@ -59,7 +59,7 @@ button:focus-visible {
 .dashboard-layout {
   display: grid;
   grid-template-columns: minmax(390px, 0.92fr) minmax(600px, 1.45fr);
-  grid-template-areas: "summary summary" "primary secondary" "controls controls" "hospitals hospitals";
+  grid-template-areas: "summary summary" "primary secondary" "hospitals hospitals";
   gap: 20px;
   align-items: start;
 }
@@ -71,12 +71,6 @@ button:focus-visible {
 }
 .dashboard-secondary {
   grid-area: secondary;
-}
-.dashboard-controls {
-  display: grid;
-  grid-area: controls;
-  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
-  gap: 20px;
 }
 .dashboard-hospitals {
   grid-area: hospitals;
@@ -874,10 +868,7 @@ button:focus-visible {
 @media (max-width: 1080px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
-    grid-template-areas: "summary" "primary" "secondary" "controls" "hospitals";
-  }
-  .dashboard-controls {
-    grid-template-columns: 1fr;
+    grid-template-areas: "summary" "primary" "secondary" "hospitals";
   }
   .dashboard-header {
     position: static;

@@ -24525,16 +24525,7 @@
         patientName: "Patient #EMRG-441 - Ramesh K.",
         onVitalsChange: setLatestVitals
       }
-    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-secondary" }, /* @__PURE__ */ import_react9.default.createElement(
-      RecommendationReason,
-      {
-        hospital: activeHospital,
-        alternatives,
-        specialty,
-        severity,
-        rerouteEvent
-      }
-    ), /* @__PURE__ */ import_react9.default.createElement(MapView, { selectedHospital: activeHospital, hospitals, route })), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-controls" }, /* @__PURE__ */ import_react9.default.createElement(
+    ), /* @__PURE__ */ import_react9.default.createElement(
       Buttons,
       {
         onAction: handleAction,
@@ -24549,7 +24540,16 @@
         alertStatus,
         rerouteStatus
       }
-    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-hospitals" }, /* @__PURE__ */ import_react9.default.createElement(
+    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-secondary" }, /* @__PURE__ */ import_react9.default.createElement(
+      RecommendationReason,
+      {
+        hospital: activeHospital,
+        alternatives,
+        specialty,
+        severity,
+        rerouteEvent
+      }
+    ), /* @__PURE__ */ import_react9.default.createElement(MapView, { selectedHospital: activeHospital, hospitals, route })), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-hospitals" }, /* @__PURE__ */ import_react9.default.createElement(
       HospitalList,
       {
         hospitals,

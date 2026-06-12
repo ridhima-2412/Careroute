@@ -62,7 +62,6 @@ button:focus-visible {
   grid-template-areas:
     "summary summary"
     "primary secondary"
-    "controls controls"
     "hospitals hospitals";
   gap: 20px;
   align-items: start;
@@ -78,13 +77,6 @@ button:focus-visible {
 
 .dashboard-secondary {
   grid-area: secondary;
-}
-
-.dashboard-controls {
-  display: grid;
-  grid-area: controls;
-  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
-  gap: 20px;
 }
 
 .dashboard-hospitals {
@@ -981,12 +973,7 @@ button:focus-visible {
       "summary"
       "primary"
       "secondary"
-      "controls"
       "hospitals";
-  }
-
-  .dashboard-controls {
-    grid-template-columns: 1fr;
   }
 
   .dashboard-header {
