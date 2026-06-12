@@ -227,6 +227,112 @@ function getWaitTimeLabel(prediction) {
   return '> 20 min';
 }
 
+function getReasoningStrength(score, highThreshold, mediumThreshold) {
+  if (score >= highThreshold) {
+    return 'strong';
+  }
+
+  if (score >= mediumThreshold) {
+    return 'moderate';
+  }
+
+  return 'weak';
+}
+
+function buildAiReasoning({ hospital, scoring = {}, mlScore = {}, context = {}, rank }) {
+  const prediction = scoring.prediction || hospital.predictedAvailability || {};
+  const scoreBreakdown = {
+    specialty: Number(scoring.specialtyScore ?? mlScore.specialtyScore ?? 0),
+    resources: Number(scoring.severityResourceScore ?? mlScore.resourceScore ?? 0),
+    availability: Number(scoring.bedAvailabilityScore ?? 0),
+    route: Number(scoring.distanceScore ?? mlScore.distanceScore ?? 0),
+  };
+  const totalScore = Number(scoring.combinedScore ?? scoring.totalScore ?? mlScore.totalScore ?? 0);
+  const specialtyMatch = hospital.specialties.includes(context.requiredSpecialty);
+  const routeMinutes = scoring.travelTimeMinutes ?? scoring.estimatedTravelTimeMinutes;
+  const distanceKm = scoring.distanceKm ?? mlScore.distanceKm;
+  const requiredResources =
+    context.severity === 'high'
+      ? 'ICU bed + ventilator readiness'
+      : context.severity === 'medium'
+        ? 'ICU bed readiness'
+        : 'nearest stable receiving facility';
+  const evidence = [
+    specialtyMatch
+      ? `Specialty match: ${toTitleCase(context.requiredSpecialty)} is available.`
+      : `Specialty gap: ${toTitleCase(context.requiredSpecialty)} is not listed, so suitability is reduced.`,
+    `Resources now: ${hospital.icuBeds} ICU beds and ${hospital.ventilators} ventilators.`,
+    `Predicted in 15 min: ${prediction.icuBedsIn15Minutes ?? 'unknown'} ICU beds and ${
+      prediction.ventilatorsIn15Minutes ?? 'unknown'
+    } ventilators.`,
+    routeMinutes != null && distanceKm != null
+      ? `Route estimate: ${Math.max(1, Math.round(routeMinutes))} min across ${Number(distanceKm).toFixed(1)} km.`
+      : 'Route estimate is not available yet.',
+  ];
+  const risks = [];
+
+  if (!specialtyMatch && context.requiredSpecialty !== 'general') {
+    risks.push('Specialty mismatch may require onward transfer.');
+  }
+
+  if (hospital.icuBeds < 1 && context.severity !== 'low') {
+    risks.push('No current ICU bed buffer for this severity.');
+  }
+
+  if (hospital.ventilators < 1 && context.severity === 'high') {
+    risks.push('Ventilator availability is below the critical-case target.');
+  }
+
+  if ((scoring.trafficMultiplier || 1) >= 1.45) {
+    risks.push('Traffic may materially delay arrival.');
+  }
+
+  if (risks.length === 0) {
+    risks.push('No major blocking risk detected from live capacity, specialty, or route data.');
+  }
+
+  return {
+    model: 'CareRoute triage reasoning v1',
+    decision: rank === 1 ? 'Recommended receiving hospital' : 'Alternate ranked option',
+    confidence: Math.max(1, Math.min(99, Math.round(totalScore))),
+    summary:
+      rank === 1
+        ? `${hospital.name} is ranked first because it offers the best combined fit for specialty, capacity, predicted availability, and route time.`
+        : `${hospital.name} remains in the ranked set, but one or more factors make it less suitable than the top recommendation.`,
+    requiredResources,
+    factors: [
+      {
+        label: 'Specialty fit',
+        strength: specialtyMatch ? 'strong' : 'weak',
+        score: scoreBreakdown.specialty,
+        note: specialtyMatch
+          ? `Matches ${toTitleCase(context.requiredSpecialty)} requirement.`
+          : `Does not directly match ${toTitleCase(context.requiredSpecialty)}.`,
+      },
+      {
+        label: 'Critical resources',
+        strength: getReasoningStrength(scoreBreakdown.resources, 20, 10),
+        score: scoreBreakdown.resources,
+        note: `${hospital.icuBeds} ICU beds, ${hospital.ventilators} ventilators available now.`,
+      },
+      {
+        label: 'Bed forecast',
+        strength: getReasoningStrength(scoreBreakdown.availability, 14, 7),
+        score: scoreBreakdown.availability,
+        note: `15-min confidence is ${prediction.confidence || 'unknown'}.`,
+      },
+      {
+        label: 'Route burden',
+        strength: getReasoningStrength(scoreBreakdown.route, 10, 5),
+        score: scoreBreakdown.route,
+        note: routeMinutes != null ? `${Math.max(1, Math.round(routeMinutes))} min ETA with ${getTrafficLabel(scoring.trafficMultiplier || 1)} traffic.` : 'ETA pending.',
+      },
+    ],
+    evidence,
+    risks,
+  };
+}
+
 function formatHospitalForFrontend(hospital, scoring = {}) {
   const travelTimeMinutes = scoring.travelTimeMinutes ?? scoring.estimatedTravelTimeMinutes;
 
@@ -247,6 +353,7 @@ function formatHospitalForFrontend(hospital, scoring = {}) {
     waitTime: getWaitTimeLabel(scoring.prediction || hospital.predictedAvailability),
     reason: scoring.reason,
     predictedAvailability: scoring.prediction || hospital.predictedAvailability,
+    aiReasoning: scoring.aiReasoning,
     lastUpdatedAt: hospital.lastUpdatedAt,
   };
 }
@@ -284,6 +391,11 @@ function buildRecommendationResponse(payload) {
           ...simulationScore,
           combinedScore,
         }),
+        rawReasoningInputs: {
+          hospital,
+          simulationScore,
+          mlScore,
+        },
         scoreBreakdown: {
           mlScore: Number.isFinite(mlScore.totalScore) ? mlScore.totalScore : null,
           simulatedScore: simulationScore.totalScore ?? null,
@@ -294,11 +406,22 @@ function buildRecommendationResponse(payload) {
     .sort((left, right) => right.scoreBreakdown.combinedScore - left.scoreBreakdown.combinedScore);
 
   const highestCombinedScore = rankedHospitals[0]?.scoreBreakdown?.combinedScore || 1;
-  rankedHospitals.forEach((hospital) => {
+  rankedHospitals.forEach((hospital, index) => {
     hospital.score = Math.max(
       1,
       Math.min(100, Math.round((hospital.scoreBreakdown.combinedScore / highestCombinedScore) * 100))
     );
+    hospital.aiReasoning = buildAiReasoning({
+      hospital: hospital.rawReasoningInputs.hospital,
+      scoring: {
+        ...hospital.rawReasoningInputs.simulationScore,
+        combinedScore: hospital.score,
+      },
+      mlScore: hospital.rawReasoningInputs.mlScore,
+      context: payload,
+      rank: index + 1,
+    });
+    delete hospital.rawReasoningInputs;
   });
 
   return {

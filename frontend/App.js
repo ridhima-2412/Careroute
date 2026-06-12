@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Vitals from "./components/Vitals";
 import HospitalList from "./components/HospitalList";
 import MapView from "./components/MapView";
 import Buttons from "./components/Buttons";
+import AIReasoningPanel from "./components/AIReasoningPanel";
 import { broadcastSOS, getHospitalRecommendations, getRoute, getSeverityScore, sendPreAlert, submitVitals } from "./api";
 
 const CASE_ID = "EMRG-2024-441";
@@ -96,6 +97,10 @@ export default function App() {
   const [survivalProbability, setSurvivalProbability] = useState(87);
   const [route, setRoute] = useState(null);
   const [alertingHospitalId, setAlertingHospitalId] = useState(null);
+  const activeHospital = useMemo(() => {
+    if (!hospitals.length) return selectedHospital;
+    return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
+  }, [hospitals, selectedHospital]);
 
   useEffect(() => {
     if (!latestVitals) {
@@ -222,6 +227,7 @@ export default function App() {
 
         {/* Right Column */}
         <div style={appStyles.rightCol}>
+          <AIReasoningPanel hospital={activeHospital} />
           <HospitalList
             hospitals={hospitals}
             onSelect={setSelectedHospital}
