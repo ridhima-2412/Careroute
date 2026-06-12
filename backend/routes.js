@@ -11,6 +11,7 @@ const { calculateRecommendationScore } = require(path.join(
 const { createSimulationEngine } = require('./simulation');
 const { transcribeAudio } = require('./voiceTranscription');
 const { parseVitals } = require('./vitalsParser');
+const { generatePreAlertMessage } = require('./preAlertMessage');
 
 const DEFAULT_LOCATION = { lat: 28.6139, lng: 77.209 };
 const FALLBACK_HOSPITAL_LOCATIONS = [
@@ -499,11 +500,14 @@ router.get('/hospitals', (req, res) => {
 router.post('/hospitals/recommend', handleRecommendation);
 router.post('/recommend-hospital', handleRecommendation);
 
-router.post('/hospitals/:hospitalId/prealert', (req, res, next) => {
+router.post('/hospitals/:hospitalId/prealert', async (req, res, next) => {
   try {
     const context = getRecommendationContext(req.body);
     const vitals = req.body.vitals || req.body;
     const patientId = req.body.patientId || req.body.caseId || `case-${Date.now()}`;
+    const hospital = simulationEngine
+      .getHospitals()
+      .find((item) => String(item.id) === String(req.params.hospitalId));
     const record = simulationEngine.sendVitals({
       hospitalId: req.params.hospitalId,
       patientId,
@@ -515,13 +519,31 @@ router.post('/hospitals/:hospitalId/prealert', (req, res, next) => {
       requiredSpecialty: context.requiredSpecialty,
       location: context.location,
     })[0];
+    const generatedEta =
+      hospitalResponse?.estimatedTravelTimeMinutes != null
+        ? `${Math.max(1, Math.round(hospitalResponse.estimatedTravelTimeMinutes))} min`
+        : undefined;
+    const eta = req.body.eta || req.body.route?.eta || generatedEta;
+    const preAlertMessage = await generatePreAlertMessage({
+      patient: req.body.patient,
+      hospital: {
+        id: hospital?.id || req.params.hospitalId,
+        name: hospital?.name || hospitalResponse?.hospitalName,
+        eta,
+      },
+      eta,
+      severity: context.severity,
+      specialty: context.requiredSpecialty,
+      vitals,
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Pre-alert sent successfully.',
+      message: `Pre-alert sent: ${preAlertMessage.brief}`,
       hospitalId: req.params.hospitalId,
       record,
       response: hospitalResponse,
+      preAlertMessage,
     });
   } catch (error) {
     next(error);
