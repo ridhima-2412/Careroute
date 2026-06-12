@@ -168,3 +168,79 @@ Each hospital is scored and ranked, and the best one is selected.
 ## 📜 License
 
 For academic and hackathon use only.
+
+---
+
+## CareRoute Emergency Dashboard
+
+The frontend is designed as a professional ambulance operations dashboard
+focused on decisions that matter during transport:
+
+* **Patient condition:** risk level, survival outlook, required specialty, and large-format vital readings.
+* **Voice vitals:** microphone capture, transcription confirmation, and automatic vital updates.
+* **Recommended destination:** best hospital, ETA, score, ICU beds, ventilators, and emergency load.
+* **Decision explanation:** human-readable selection and rejection reasons.
+* **Live route:** destination, traffic, distance, and capacity-aware rerouting.
+* **Hospital communication:** receiving-alert status and continuous capacity monitoring.
+
+### Voice Vitals
+
+Click **Start Voice Capture**, speak the patient condition and vitals, then
+click **Stop and Process** or wait ten seconds. The transcript is shown for
+confirmation and recognized values update the dashboard.
+
+Microphone access requires `http://localhost` or an HTTPS deployment. For real
+transcription, add this to the root `.env` file:
+
+```env
+OPENAI_API_KEY=your_api_key_here
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+```
+
+Without an API key, the backend uses presentation-safe demo transcription.
+
+### Recommendation Explanation
+
+CareRoute ranks hospitals using clinical severity, specialty match,
+critical-care resources, predicted availability, travel distance, traffic, and
+hospital load. The dashboard explains why the selected hospital is preferred
+and why alternatives were deprioritized, such as:
+
+* No ICU bed currently available.
+* No ventilator currently available.
+* Required emergency specialty not confirmed.
+* High traffic or longer effective transfer time.
+* Lower overall suitability score for the current patient.
+
+### Hospital Dataset Integration
+
+Hospital records are loaded from `database/hospitals.json`. A record can use:
+
+```json
+{
+  "name": "City Heart Hospital",
+  "location": { "lat": 28.61, "lng": 77.2 },
+  "icu_total": 20,
+  "icu_available": 5,
+  "ventilators_total": 10,
+  "ventilators_available": 3,
+  "specialists": {
+    "cardiologist": 2,
+    "neurologist": 1,
+    "trauma": 3
+  },
+  "status": "available",
+  "bedTrendPer15Min": 0
+}
+```
+
+To integrate another dataset:
+
+1. Normalize resource counts to numbers.
+2. Add `location.lat` and `location.lng` when coordinates are available.
+3. Use `available`, `limited`, or `full` for `status`.
+4. Map specialist counts under `specialists`.
+5. Restart the backend after changing the JSON file.
+
+The backend supplies fallback coordinates when a record has no `location`
+field, so incomplete hackathon datasets remain demoable.
