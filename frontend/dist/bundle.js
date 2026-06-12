@@ -1092,7 +1092,7 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useReducer(reducer, initialArg, init);
           }
-          function useRef2(initialValue) {
+          function useRef4(initialValue) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useRef(initialValue);
           }
@@ -1886,7 +1886,7 @@
           exports.useLayoutEffect = useLayoutEffect;
           exports.useMemo = useMemo3;
           exports.useReducer = useReducer;
-          exports.useRef = useRef2;
+          exports.useRef = useRef4;
           exports.useState = useState6;
           exports.useSyncExternalStore = useSyncExternalStore;
           exports.useTransition = useTransition;
@@ -23590,13 +23590,246 @@
 
   // components/Vitals.js
   var import_react = __toESM(require_react());
+
+  // api.js
+  var BASE_URL = "http://localhost:5000/api";
+  var MOCK_MODE = false;
+  var MOCK_HOSPITALS = [
+    {
+      id: 1,
+      name: "AIIMS Trauma Centre",
+      lat: 28.5672,
+      lng: 77.21,
+      distance: "2.1 km",
+      eta: "4 min",
+      icuBeds: 3,
+      ventilators: 2,
+      specialists: ["Cardiology", "Neurology", "Trauma"],
+      score: 94,
+      status: "AVAILABLE",
+      traffic: "Low",
+      waitTime: "< 5 min",
+      contact: "+91-11-26588500"
+    },
+    {
+      id: 2,
+      name: "Safdarjung Hospital",
+      lat: 28.5687,
+      lng: 77.206,
+      distance: "3.8 km",
+      eta: "9 min",
+      icuBeds: 1,
+      ventilators: 0,
+      specialists: ["General Surgery", "Ortho"],
+      score: 61,
+      status: "LIMITED",
+      traffic: "High",
+      waitTime: "15\u201320 min",
+      contact: "+91-11-26165060"
+    },
+    {
+      id: 3,
+      name: "RML Hospital",
+      lat: 28.6289,
+      lng: 77.2065,
+      distance: "5.2 km",
+      eta: "13 min",
+      icuBeds: 5,
+      ventilators: 4,
+      specialists: ["Cardiology", "Neuro ICU", "Burns"],
+      score: 87,
+      status: "AVAILABLE",
+      traffic: "Moderate",
+      waitTime: "8 min",
+      contact: "+91-11-23404040"
+    },
+    {
+      id: 4,
+      name: "GTB Hospital",
+      lat: 28.6817,
+      lng: 77.295,
+      distance: "7.4 km",
+      eta: "19 min",
+      icuBeds: 0,
+      ventilators: 0,
+      specialists: ["General"],
+      score: 22,
+      status: "FULL",
+      traffic: "High",
+      waitTime: "> 30 min",
+      contact: "+91-11-22924000"
+    }
+  ];
+  async function apiFetch(endpoint, options = {}) {
+    try {
+      const res = await fetch(`${BASE_URL}${endpoint}`, {
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.error(`[API] ${endpoint} failed:`, err.message);
+      throw err;
+    }
+  }
+  async function getHospitalRecommendations(params = {}) {
+    if (MOCK_MODE) {
+      await delay(300);
+      return { success: true, hospitals: MOCK_HOSPITALS };
+    }
+    const response = await apiFetch("/hospitals/recommend", {
+      method: "POST",
+      body: JSON.stringify({
+        severity: params.severity,
+        specialty: params.specialty || params.requiredSpecialty,
+        location: params.location || {
+          lat: params.lat,
+          lng: params.lng
+        },
+        patientVitals: params.patientVitals || params.vitals
+      })
+    });
+    return {
+      success: response.success,
+      recommendation: response.recommendation,
+      hospitals: response.hospitals || [],
+      severity: response.severity,
+      specialty: response.specialty
+    };
+  }
+  async function sendPreAlert(hospitalId, patientData) {
+    if (MOCK_MODE) {
+      await delay(500);
+      console.log(`[MOCK] Pre-alert sent to hospital ${hospitalId}`, patientData);
+      return { success: true, message: "Pre-alert sent successfully", hospitalId };
+    }
+    return apiFetch(`/hospitals/${hospitalId}/prealert`, {
+      method: "POST",
+      body: JSON.stringify({
+        ...patientData,
+        vitals: patientData.vitals || patientData.patientVitals || patientData
+      })
+    });
+  }
+  async function broadcastSOS(caseData) {
+    if (MOCK_MODE) {
+      await delay(700);
+      console.log("[MOCK] SOS broadcast sent to all hospitals", caseData);
+      return { success: true, alerted: MOCK_HOSPITALS.length, message: "SOS sent to 4 hospitals" };
+    }
+    return apiFetch("/hospitals/sos", {
+      method: "POST",
+      body: JSON.stringify(caseData)
+    });
+  }
+  async function triggerAutonomousReroute(caseData) {
+    if (MOCK_MODE) {
+      await delay(500);
+      const hospitals = MOCK_HOSPITALS.map(
+        (hospital) => hospital.name.includes("AIIMS") ? { ...hospital, status: "FULL", icuBeds: 0, ventilators: 0, score: 12 } : hospital.name.includes("Metro") ? { ...hospital, status: "AVAILABLE", icuBeds: 9, ventilators: 6, score: 97 } : hospital
+      ).sort((a, b) => b.score - a.score);
+      return {
+        success: true,
+        event: {
+          trigger: "AIIMS Trauma Centre reached full critical-care capacity mid-route.",
+          agentAction: "Re-evaluated hospital scores and rerouted without human input.",
+          preferredHospitalName: "Metro Hospital"
+        },
+        recommendation: hospitals[0],
+        hospitals
+      };
+    }
+    return apiFetch("/simulation/autonomous-reroute", {
+      method: "POST",
+      body: JSON.stringify(caseData)
+    });
+  }
+  async function submitVitals(caseId, vitals) {
+    if (MOCK_MODE) {
+      await delay(200);
+      return { success: true };
+    }
+    return apiFetch(`/vitals/${caseId}`, {
+      method: "POST",
+      body: JSON.stringify(vitals)
+    });
+  }
+  async function transcribeVitalsAudio(audioBlob) {
+    const extension = audioBlob.type.includes("ogg") ? "ogg" : "webm";
+    const res = await fetch(`${BASE_URL}/voice/transcribe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": audioBlob.type || "audio/webm",
+        "X-Audio-Filename": `patient-vitals.${extension}`
+      },
+      body: audioBlob
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(payload.error || `Transcription failed (HTTP ${res.status})`);
+    }
+    return payload;
+  }
+  async function getRoute(origin, destinationId) {
+    if (MOCK_MODE) {
+      await delay(400);
+      return {
+        success: true,
+        route: {
+          eta: "4 min",
+          distance: "2.1 km",
+          trafficLevel: "Low",
+          waypoints: [
+            { lat: 28.6129, lng: 77.2295 },
+            { lat: 28.598, lng: 77.222 },
+            { lat: 28.5788, lng: 77.216 },
+            { lat: 28.5672, lng: 77.21 }
+          ]
+        }
+      };
+    }
+    return apiFetch("/route/optimize", {
+      method: "POST",
+      body: JSON.stringify({
+        origin,
+        destinationId,
+        location: origin
+      })
+    });
+  }
+  async function getSeverityScore(vitals) {
+    if (MOCK_MODE) {
+      await delay(150);
+      const { heartRate, spo2, gcs } = vitals;
+      let score = "STABLE";
+      let probability = 87;
+      if (gcs < 9 || spo2 < 88 || heartRate > 150) {
+        score = "CRITICAL";
+        probability = 42;
+      } else if (gcs < 13 || spo2 < 93 || heartRate > 130) {
+        score = "MODERATE";
+        probability = 68;
+      }
+      return { success: true, severity: score, survivalProbability: probability };
+    }
+    return apiFetch("/logic/severity", {
+      method: "POST",
+      body: JSON.stringify({ vitals })
+    });
+  }
+  function delay(ms) {
+    return new Promise((res) => setTimeout(res, ms));
+  }
+
+  // components/Vitals.js
   var vitalsConfig = [
-    { key: "heartRate", label: "Heart Rate", unit: "bpm", icon: "\u2665", min: 40, max: 180, critical: [0, 50, 140, 999], color: "#ff4d6d" },
-    { key: "spo2", label: "SpO\u2082", unit: "%", icon: "\u25C9", min: 80, max: 100, critical: [0, 90, 101, 999], color: "#00d4ff" },
-    { key: "bp", label: "Blood Pressure", unit: "mmHg", icon: "\u2B06", min: 60, max: 200, critical: null, color: "#ffd166" },
-    { key: "respRate", label: "Resp. Rate", unit: "/min", icon: "\u224B", min: 8, max: 40, critical: [0, 12, 30, 999], color: "#06d6a0" },
-    { key: "temp", label: "Temperature", unit: "\xB0C", icon: "\u{1F321}", min: 34, max: 42, critical: [0, 35, 39.5, 999], color: "#f77f00" },
-    { key: "gcs", label: "GCS Score", unit: "/15", icon: "\u{1F9E0}", min: 3, max: 15, critical: [0, 9, 16, 999], color: "#c77dff" }
+    { key: "heartRate", label: "Heart Rate", unit: "bpm", icon: "HR", critical: [0, 50, 140, 999], color: "#ff4d6d" },
+    { key: "spo2", label: "SpO2", unit: "%", icon: "O2", critical: [0, 90, 101, 999], color: "#00d4ff" },
+    { key: "bp", label: "Blood Pressure", unit: "mmHg", icon: "BP", critical: null, color: "#ffd166" },
+    { key: "respRate", label: "Resp. Rate", unit: "/min", icon: "RR", critical: [0, 12, 30, 999], color: "#06d6a0" },
+    { key: "temp", label: "Temperature", unit: "C", icon: "TEMP", critical: [0, 35, 39.5, 999], color: "#f77f00" },
+    { key: "gcs", label: "GCS Score", unit: "/15", icon: "GCS", critical: [0, 9, 16, 999], color: "#c77dff" }
   ];
   function generateVitals() {
     return {
@@ -23608,16 +23841,34 @@
       gcs: Math.floor(Math.random() * 5 + 10)
     };
   }
-  function isCritical(val, range) {
+  function isCritical(value, range) {
     if (!range) return false;
-    const v = parseFloat(val);
-    return v < range[1] || v > range[2];
+    const numericValue = parseFloat(value);
+    return numericValue < range[1] || numericValue > range[2];
+  }
+  function getRecorderOptions() {
+    if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      return { mimeType: "audio/webm;codecs=opus" };
+    }
+    if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+      return { mimeType: "audio/ogg;codecs=opus" };
+    }
+    return {};
   }
   function Vitals({ patientName = "Patient #A-112", liveVitals, onVitalsChange }) {
     const [vitals, setVitals] = (0, import_react.useState)(generateVitals());
     const [history, setHistory] = (0, import_react.useState)([generateVitals()]);
     const [pulse, setPulse] = (0, import_react.useState)(false);
-    const displayedVitals = liveVitals || vitals;
+    const [voiceVitals, setVoiceVitals] = (0, import_react.useState)(null);
+    const [voiceStatus, setVoiceStatus] = (0, import_react.useState)("idle");
+    const [transcript, setTranscript] = (0, import_react.useState)("");
+    const [voiceDetails, setVoiceDetails] = (0, import_react.useState)({});
+    const [voiceError, setVoiceError] = (0, import_react.useState)("");
+    const voiceVitalsRef = (0, import_react.useRef)(null);
+    const mediaRecorderRef = (0, import_react.useRef)(null);
+    const mediaStreamRef = (0, import_react.useRef)(null);
+    const recordingTimerRef = (0, import_react.useRef)(null);
+    const displayedVitals = voiceVitals || liveVitals || vitals;
     (0, import_react.useEffect)(() => {
       const initialVitals = liveVitals || generateVitals();
       setVitals(initialVitals);
@@ -23629,30 +23880,216 @@
       const interval = setInterval(() => {
         const next = generateVitals();
         setVitals(next);
-        setHistory((h) => [...h.slice(-19), next]);
-        onVitalsChange && onVitalsChange(next);
+        setHistory((current) => [...current.slice(-19), next]);
+        if (!voiceVitalsRef.current) {
+          onVitalsChange && onVitalsChange(next);
+        }
         setPulse(true);
         setTimeout(() => setPulse(false), 300);
       }, 2e3);
       return () => clearInterval(interval);
     }, [liveVitals, onVitalsChange]);
+    (0, import_react.useEffect)(() => {
+      return () => {
+        clearTimeout(recordingTimerRef.current);
+        if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      };
+    }, []);
+    async function processRecording(audioBlob) {
+      try {
+        setVoiceStatus("transcribing");
+        const result = await transcribeVitalsAudio(audioBlob);
+        const mergedVitals = { ...displayedVitals, ...result.vitals };
+        voiceVitalsRef.current = mergedVitals;
+        setVoiceVitals(mergedVitals);
+        setHistory((current) => [...current.slice(-19), mergedVitals]);
+        setTranscript(result.transcript);
+        setVoiceDetails({
+          consciousness: result.consciousness,
+          emergencyType: result.emergencyType,
+          mode: result.transcriptionMode
+        });
+        setPulse(true);
+        setTimeout(() => setPulse(false), 300);
+        onVitalsChange && onVitalsChange(mergedVitals);
+        setVoiceStatus("filled");
+      } catch (error) {
+        setVoiceError(error.message || "Unable to transcribe this recording.");
+        setVoiceStatus("error");
+      }
+    }
+    function stopRecording() {
+      clearTimeout(recordingTimerRef.current);
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    }
+    async function startRecording() {
+      setVoiceError("");
+      setTranscript("");
+      setVoiceDetails({});
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        setVoiceError("Voice recording is not supported in this browser.");
+        setVoiceStatus("error");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const chunks = [];
+        const recorder = new MediaRecorder(stream, getRecorderOptions());
+        mediaStreamRef.current = stream;
+        mediaRecorderRef.current = recorder;
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+        recorder.onerror = () => {
+          setVoiceError("The browser could not record audio.");
+          setVoiceStatus("error");
+        };
+        recorder.onstop = () => {
+          const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          stream.getTracks().forEach((track) => track.stop());
+          mediaStreamRef.current = null;
+          processRecording(audioBlob);
+        };
+        recorder.start();
+        setVoiceStatus("listening");
+        recordingTimerRef.current = setTimeout(stopRecording, 1e4);
+      } catch (error) {
+        const permissionDenied = error.name === "NotAllowedError" || error.name === "SecurityError";
+        setVoiceError(
+          permissionDenied ? "Microphone permission was denied. Allow microphone access and try again." : "Unable to access the microphone. Check that an input device is connected."
+        );
+        setVoiceStatus("error");
+      }
+    }
+    function handleVoiceButton() {
+      if (voiceStatus === "listening") {
+        stopRecording();
+      } else if (voiceStatus !== "transcribing") {
+        startRecording();
+      }
+    }
     const severity = displayedVitals.gcs < 9 || displayedVitals.spo2 < 90 || displayedVitals.heartRate > 140 ? "CRITICAL" : displayedVitals.gcs < 13 ? "MODERATE" : "STABLE";
-    return /* @__PURE__ */ import_react.default.createElement("div", { style: styles.container }, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.header }, /* @__PURE__ */ import_react.default.createElement("div", null, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.patientLabel }, "PATIENT VITALS"), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.patientName }, patientName)), /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.severityBadge, background: severity === "CRITICAL" ? "#ff4d6d22" : severity === "MODERATE" ? "#ffd16622" : "#06d6a022", color: severity === "CRITICAL" ? "#ff4d6d" : severity === "MODERATE" ? "#ffd166" : "#06d6a0", border: `1px solid ${severity === "CRITICAL" ? "#ff4d6d" : severity === "MODERATE" ? "#ffd166" : "#06d6a0"}` } }, /* @__PURE__ */ import_react.default.createElement("span", { style: { ...styles.dot, background: severity === "CRITICAL" ? "#ff4d6d" : severity === "MODERATE" ? "#ffd166" : "#06d6a0", animation: severity === "CRITICAL" ? "blink 0.6s infinite" : "none" } }), severity)), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.grid }, vitalsConfig.map((v) => {
-      const val = displayedVitals[v.key];
-      const critical = isCritical(val, v.critical);
-      return /* @__PURE__ */ import_react.default.createElement("div", { key: v.key, style: { ...styles.card, border: `1px solid ${critical ? v.color + "88" : "#ffffff12"}`, background: critical ? v.color + "0a" : "#ffffff05" } }, /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.cardIcon, color: v.color } }, v.icon), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.cardLabel }, v.label), /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.cardValue, color: critical ? v.color : "#f0f0f0", animation: pulse ? "pop 0.3s ease" : "none" } }, val), /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.cardUnit, color: v.color + "99" } }, v.unit), critical && /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.alertTag, color: v.color } }, "\u26A0 ALERT"));
+    const severityColor = severity === "CRITICAL" ? "#ff4d6d" : severity === "MODERATE" ? "#ffd166" : "#06d6a0";
+    const voiceLabel = {
+      idle: "Speak Vitals",
+      listening: "Listening... Stop",
+      transcribing: "Transcribing...",
+      filled: "Vitals Filled",
+      error: "Try Voice Again"
+    }[voiceStatus];
+    return /* @__PURE__ */ import_react.default.createElement("div", { style: styles.container }, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.header }, /* @__PURE__ */ import_react.default.createElement("div", null, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.patientLabel }, "PATIENT VITALS"), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.patientName }, patientName)), /* @__PURE__ */ import_react.default.createElement(
+      "div",
+      {
+        style: {
+          ...styles.severityBadge,
+          background: `${severityColor}22`,
+          color: severityColor,
+          border: `1px solid ${severityColor}`
+        }
+      },
+      /* @__PURE__ */ import_react.default.createElement(
+        "span",
+        {
+          style: {
+            ...styles.dot,
+            background: severityColor,
+            animation: severity === "CRITICAL" ? "blink 0.6s infinite" : "none"
+          }
+        }
+      ),
+      severity
+    )), /* @__PURE__ */ import_react.default.createElement(
+      "div",
+      {
+        style: {
+          ...styles.voicePanel,
+          borderColor: voiceStatus === "listening" ? "#ff4d6d66" : voiceStatus === "filled" ? "#06d6a055" : "#00d4ff33"
+        }
+      },
+      /* @__PURE__ */ import_react.default.createElement(
+        "button",
+        {
+          type: "button",
+          onClick: handleVoiceButton,
+          disabled: voiceStatus === "transcribing",
+          style: {
+            ...styles.voiceButton,
+            ...voiceStatus === "listening" ? styles.voiceButtonListening : {},
+            ...voiceStatus === "filled" ? styles.voiceButtonFilled : {}
+          },
+          "aria-label": voiceStatus === "listening" ? "Stop recording patient vitals" : "Record patient vitals"
+        },
+        /* @__PURE__ */ import_react.default.createElement("span", { style: styles.micIcon, "aria-hidden": "true" }, /* @__PURE__ */ import_react.default.createElement("span", { style: styles.micHead }), /* @__PURE__ */ import_react.default.createElement("span", { style: styles.micStem })),
+        voiceLabel
+      ),
+      /* @__PURE__ */ import_react.default.createElement("div", { style: styles.voiceCopy }, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.voiceTitle }, "VOICE ASSIST", voiceDetails.mode && /* @__PURE__ */ import_react.default.createElement("span", { style: styles.modeBadge }, voiceDetails.mode === "mock" ? "DEMO MODE" : "AI TRANSCRIPTION")), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.voiceHint }, voiceStatus === "listening" ? "Speak clearly. Recording stops automatically after 10 seconds." : "Say heart rate, oxygen, BP, temperature, consciousness, and condition."))
+    ), (transcript || voiceError) && /* @__PURE__ */ import_react.default.createElement(
+      "div",
+      {
+        style: {
+          ...styles.transcriptBox,
+          borderColor: voiceError ? "#ff4d6d55" : "#06d6a044"
+        }
+      },
+      /* @__PURE__ */ import_react.default.createElement(
+        "div",
+        {
+          style: {
+            ...styles.transcriptLabel,
+            color: voiceError ? "#ff4d6d" : "#06d6a0"
+          }
+        },
+        voiceError ? "VOICE INPUT ERROR" : "CONFIRM TRANSCRIPT"
+      ),
+      /* @__PURE__ */ import_react.default.createElement("div", { style: styles.transcriptText }, voiceError || `"${transcript}"`),
+      !voiceError && (voiceDetails.consciousness || voiceDetails.emergencyType) && /* @__PURE__ */ import_react.default.createElement("div", { style: styles.detectedRow }, voiceDetails.consciousness && /* @__PURE__ */ import_react.default.createElement("span", null, "STATUS: ", voiceDetails.consciousness.toUpperCase()), voiceDetails.emergencyType && /* @__PURE__ */ import_react.default.createElement("span", null, "CASE: ", voiceDetails.emergencyType.toUpperCase()))
+    ), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.grid }, vitalsConfig.map((config) => {
+      const value = displayedVitals[config.key];
+      const critical = isCritical(value, config.critical);
+      return /* @__PURE__ */ import_react.default.createElement(
+        "div",
+        {
+          key: config.key,
+          style: {
+            ...styles.card,
+            border: `1px solid ${critical ? `${config.color}88` : "#ffffff12"}`,
+            background: critical ? `${config.color}0a` : "#ffffff05"
+          }
+        },
+        /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.cardIcon, color: config.color } }, config.icon),
+        /* @__PURE__ */ import_react.default.createElement("div", { style: styles.cardLabel }, config.label),
+        /* @__PURE__ */ import_react.default.createElement(
+          "div",
+          {
+            style: {
+              ...styles.cardValue,
+              color: critical ? config.color : "#f0f0f0",
+              animation: pulse ? "pop 0.3s ease" : "none"
+            }
+          },
+          value
+        ),
+        /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.cardUnit, color: `${config.color}99` } }, config.unit),
+        critical && /* @__PURE__ */ import_react.default.createElement("div", { style: { ...styles.alertTag, color: config.color } }, "ALERT")
+      );
     })), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.sparkSection }, /* @__PURE__ */ import_react.default.createElement("div", { style: styles.sparkLabel }, "Heart Rate Trend (last 20s)"), /* @__PURE__ */ import_react.default.createElement("svg", { width: "100%", height: "48", viewBox: `0 0 ${history.length * 14} 48`, preserveAspectRatio: "none" }, /* @__PURE__ */ import_react.default.createElement(
       "polyline",
       {
-        points: history.map((h, i) => `${i * 14},${48 - (h.heartRate - 40) / 140 * 48}`).join(" "),
+        points: history.map((entry, index) => `${index * 14},${48 - (entry.heartRate - 40) / 140 * 48}`).join(" "),
         fill: "none",
         stroke: "#ff4d6d",
         strokeWidth: "2",
         strokeLinejoin: "round"
       }
-    ))), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.footer }, /* @__PURE__ */ import_react.default.createElement("span", { style: styles.footerDot }), " Live \u2022 Updates every 2s"), /* @__PURE__ */ import_react.default.createElement("style", null, `
+    ))), /* @__PURE__ */ import_react.default.createElement("div", { style: styles.footer }, /* @__PURE__ */ import_react.default.createElement("span", { style: styles.footerDot }), voiceVitals ? "Voice vitals locked for dispatch" : "Live - Updates every 2s"), /* @__PURE__ */ import_react.default.createElement("style", null, `
         @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.2 } }
         @keyframes pop { 0% { transform: scale(1) } 50% { transform: scale(1.08) } 100% { transform: scale(1) } }
+        @keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 #ff4d6d55 } 50% { box-shadow: 0 0 0 8px #ff4d6d00 } }
       `));
   }
   var styles = {
@@ -23662,9 +24099,24 @@
     patientName: { fontSize: 18, fontWeight: 700, color: "#fff", marginTop: 4 },
     severityBadge: { display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700, letterSpacing: 2 },
     dot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block" },
+    voicePanel: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: 12, border: "1px solid #00d4ff33", borderRadius: 12, background: "linear-gradient(135deg, #00d4ff0b, #c77dff08)", transition: "all 0.25s" },
+    voiceButton: { minWidth: 142, border: "1px solid #00d4ff66", borderRadius: 10, padding: "10px 12px", background: "#00d4ff16", color: "#9cecff", fontFamily: "inherit", fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9 },
+    voiceButtonListening: { borderColor: "#ff4d6d", background: "#ff4d6d22", color: "#ff8fa3", animation: "voicePulse 1.2s infinite" },
+    voiceButtonFilled: { borderColor: "#06d6a0", background: "#06d6a018", color: "#63efc1" },
+    micIcon: { width: 14, height: 17, position: "relative", display: "inline-block", border: "1.5px solid currentColor", borderTop: 0, borderRadius: "0 0 8px 8px" },
+    micHead: { position: "absolute", width: 7, height: 11, left: 2, top: -4, border: "1.5px solid currentColor", borderRadius: 6, background: "#0d1117" },
+    micStem: { position: "absolute", width: 1.5, height: 4, left: 5, bottom: -5, background: "currentColor" },
+    voiceCopy: { minWidth: 0, flex: 1 },
+    voiceTitle: { fontSize: 9, color: "#00d4ff", letterSpacing: 2, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 },
+    voiceHint: { marginTop: 5, color: "#777", fontSize: 9, lineHeight: 1.45 },
+    modeBadge: { padding: "2px 5px", borderRadius: 4, background: "#ffffff0c", color: "#888", fontSize: 7, letterSpacing: 1 },
+    transcriptBox: { marginBottom: 16, padding: 12, border: "1px solid #06d6a044", borderRadius: 10, background: "#ffffff04" },
+    transcriptLabel: { fontSize: 8, fontWeight: 800, letterSpacing: 2, marginBottom: 6 },
+    transcriptText: { fontSize: 10, color: "#bbb", lineHeight: 1.5 },
+    detectedRow: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, color: "#ffd166", fontSize: 8, letterSpacing: 1 },
     grid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
     card: { borderRadius: 12, padding: 14, position: "relative", transition: "all 0.3s" },
-    cardIcon: { fontSize: 16, marginBottom: 4 },
+    cardIcon: { fontSize: 12, fontWeight: 800, marginBottom: 4 },
     cardLabel: { fontSize: 9, letterSpacing: 2, color: "#888", textTransform: "uppercase", marginBottom: 6 },
     cardValue: { fontSize: 26, fontWeight: 800, letterSpacing: -1 },
     cardUnit: { fontSize: 10, marginTop: 2 },
@@ -24188,199 +24640,6 @@
     riskItem: { fontSize: 10, color: "#c9b18d", lineHeight: 1.45, borderLeft: "2px solid #ffd16688", paddingLeft: 8, marginBottom: 6 }
   };
 
-  // api.js
-  var BASE_URL = "http://localhost:5000/api";
-  var MOCK_MODE = false;
-  var MOCK_HOSPITALS = [
-    {
-      id: 1,
-      name: "AIIMS Trauma Centre",
-      lat: 28.5672,
-      lng: 77.21,
-      distance: "2.1 km",
-      eta: "4 min",
-      icuBeds: 3,
-      ventilators: 2,
-      specialists: ["Cardiology", "Neurology", "Trauma"],
-      score: 94,
-      status: "AVAILABLE",
-      traffic: "Low",
-      waitTime: "< 5 min",
-      contact: "+91-11-26588500"
-    },
-    {
-      id: 2,
-      name: "Safdarjung Hospital",
-      lat: 28.5687,
-      lng: 77.206,
-      distance: "3.8 km",
-      eta: "9 min",
-      icuBeds: 1,
-      ventilators: 0,
-      specialists: ["General Surgery", "Ortho"],
-      score: 61,
-      status: "LIMITED",
-      traffic: "High",
-      waitTime: "15\u201320 min",
-      contact: "+91-11-26165060"
-    },
-    {
-      id: 3,
-      name: "RML Hospital",
-      lat: 28.6289,
-      lng: 77.2065,
-      distance: "5.2 km",
-      eta: "13 min",
-      icuBeds: 5,
-      ventilators: 4,
-      specialists: ["Cardiology", "Neuro ICU", "Burns"],
-      score: 87,
-      status: "AVAILABLE",
-      traffic: "Moderate",
-      waitTime: "8 min",
-      contact: "+91-11-23404040"
-    },
-    {
-      id: 4,
-      name: "GTB Hospital",
-      lat: 28.6817,
-      lng: 77.295,
-      distance: "7.4 km",
-      eta: "19 min",
-      icuBeds: 0,
-      ventilators: 0,
-      specialists: ["General"],
-      score: 22,
-      status: "FULL",
-      traffic: "High",
-      waitTime: "> 30 min",
-      contact: "+91-11-22924000"
-    }
-  ];
-  async function apiFetch(endpoint, options = {}) {
-    try {
-      const res = await fetch(`${BASE_URL}${endpoint}`, {
-        headers: { "Content-Type": "application/json" },
-        ...options
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      console.error(`[API] ${endpoint} failed:`, err.message);
-      throw err;
-    }
-  }
-  async function getHospitalRecommendations(params = {}) {
-    if (MOCK_MODE) {
-      await delay(300);
-      return { success: true, hospitals: MOCK_HOSPITALS };
-    }
-    const response = await apiFetch("/hospitals/recommend", {
-      method: "POST",
-      body: JSON.stringify({
-        severity: params.severity,
-        specialty: params.specialty || params.requiredSpecialty,
-        location: params.location || {
-          lat: params.lat,
-          lng: params.lng
-        },
-        patientVitals: params.patientVitals || params.vitals
-      })
-    });
-    return {
-      success: response.success,
-      recommendation: response.recommendation,
-      hospitals: response.hospitals || [],
-      severity: response.severity,
-      specialty: response.specialty
-    };
-  }
-  async function sendPreAlert(hospitalId, patientData) {
-    if (MOCK_MODE) {
-      await delay(500);
-      console.log(`[MOCK] Pre-alert sent to hospital ${hospitalId}`, patientData);
-      return { success: true, message: "Pre-alert sent successfully", hospitalId };
-    }
-    return apiFetch(`/hospitals/${hospitalId}/prealert`, {
-      method: "POST",
-      body: JSON.stringify({
-        ...patientData,
-        vitals: patientData.vitals || patientData.patientVitals || patientData
-      })
-    });
-  }
-  async function broadcastSOS(caseData) {
-    if (MOCK_MODE) {
-      await delay(700);
-      console.log("[MOCK] SOS broadcast sent to all hospitals", caseData);
-      return { success: true, alerted: MOCK_HOSPITALS.length, message: "SOS sent to 4 hospitals" };
-    }
-    return apiFetch("/hospitals/sos", {
-      method: "POST",
-      body: JSON.stringify(caseData)
-    });
-  }
-  async function submitVitals(caseId, vitals) {
-    if (MOCK_MODE) {
-      await delay(200);
-      return { success: true };
-    }
-    return apiFetch(`/vitals/${caseId}`, {
-      method: "POST",
-      body: JSON.stringify(vitals)
-    });
-  }
-  async function getRoute(origin, destinationId) {
-    if (MOCK_MODE) {
-      await delay(400);
-      return {
-        success: true,
-        route: {
-          eta: "4 min",
-          distance: "2.1 km",
-          trafficLevel: "Low",
-          waypoints: [
-            { lat: 28.6129, lng: 77.2295 },
-            { lat: 28.598, lng: 77.222 },
-            { lat: 28.5788, lng: 77.216 },
-            { lat: 28.5672, lng: 77.21 }
-          ]
-        }
-      };
-    }
-    return apiFetch("/route/optimize", {
-      method: "POST",
-      body: JSON.stringify({
-        origin,
-        destinationId,
-        location: origin
-      })
-    });
-  }
-  async function getSeverityScore(vitals) {
-    if (MOCK_MODE) {
-      await delay(150);
-      const { heartRate, spo2, gcs } = vitals;
-      let score = "STABLE";
-      let probability = 87;
-      if (gcs < 9 || spo2 < 88 || heartRate > 150) {
-        score = "CRITICAL";
-        probability = 42;
-      } else if (gcs < 13 || spo2 < 93 || heartRate > 130) {
-        score = "MODERATE";
-        probability = 68;
-      }
-      return { success: true, severity: score, survivalProbability: probability };
-    }
-    return apiFetch("/logic/severity", {
-      method: "POST",
-      body: JSON.stringify({ vitals })
-    });
-  }
-  function delay(ms) {
-    return new Promise((res) => setTimeout(res, ms));
-  }
-
   // App.js
   var CASE_ID = "EMRG-2024-441";
   var AMBULANCE_LOCATION = { lat: 28.6139, lng: 77.209 };
@@ -24404,6 +24663,15 @@
   function CaseSummary() {
     return /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.container }, /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.label }, "CASE SUMMARY"), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Case ID"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "#EMRG-2024-441")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Incident Type"), /* @__PURE__ */ import_react6.default.createElement("strong", { style: { color: "#ff4d6d" } }, "Cardiac Arrest")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Age / Gender"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "52 / Male")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Crew"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "Dr. Mehta + EMT Raza")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "Dispatch Time"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "17:01:14")), /* @__PURE__ */ import_react6.default.createElement("div", { style: summaryStyles.row }, /* @__PURE__ */ import_react6.default.createElement("span", null, "On Scene At"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "17:04:28")));
   }
+  function AutonomousReroutePanel({ event, status, destination }) {
+    const statusCopy = {
+      monitoring: "Monitoring live hospital capacity",
+      evaluating: "Capacity shock detected. Agent is re-scoring hospitals.",
+      rerouted: `Autonomous reroute active: ${destination?.name || "new destination selected"}`
+    };
+    const accent = status === "rerouted" ? "#06d6a0" : status === "evaluating" ? "#ffd166" : "#00d4ff";
+    return /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.container, borderColor: `${accent}55` } }, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.header }, /* @__PURE__ */ import_react6.default.createElement("div", null, /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.label }, "AUTONOMOUS RE-ROUTING SIMULATION"), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.title }, "Agent Decision Loop")), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.badge, color: accent, borderColor: `${accent}55`, background: `${accent}12` } }, status.toUpperCase())), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.timeline }, /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: "#00d4ff" } }, "1. Monitor route and hospital capacity"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "monitoring" ? "#555" : "#ffd166" } }, "2. Detect AIIMS full-capacity event"), /* @__PURE__ */ import_react6.default.createElement("div", { style: { ...rerouteStyles.step, color: status === "rerouted" ? "#06d6a0" : "#555" } }, "3. Switch recommendation without human click")), /* @__PURE__ */ import_react6.default.createElement("div", { style: rerouteStyles.message }, event?.trigger || statusCopy[status], event?.agentAction ? ` ${event.agentAction}` : ""));
+  }
   function App() {
     const [selectedHospital, setSelectedHospital] = (0, import_react6.useState)(null);
     const [hospitals, setHospitals] = (0, import_react6.useState)([]);
@@ -24412,10 +24680,37 @@
     const [survivalProbability, setSurvivalProbability] = (0, import_react6.useState)(87);
     const [route, setRoute] = (0, import_react6.useState)(null);
     const [alertingHospitalId, setAlertingHospitalId] = (0, import_react6.useState)(null);
+    const [rerouteEvent, setRerouteEvent] = (0, import_react6.useState)(null);
+    const [rerouteStatus, setRerouteStatus] = (0, import_react6.useState)("monitoring");
+    const autonomousRerouteStartedRef = (0, import_react6.useRef)(false);
+    const autonomousRerouteTimerRef = (0, import_react6.useRef)(null);
     const activeHospital = (0, import_react6.useMemo)(() => {
       if (!hospitals.length) return selectedHospital;
       return hospitals.find((hospital) => hospital.id === selectedHospital?.id) || hospitals[0];
     }, [hospitals, selectedHospital]);
+    async function runAutonomousReroute(vitals, severityValue, specialty) {
+      if (autonomousRerouteStartedRef.current === "complete") {
+        return;
+      }
+      autonomousRerouteStartedRef.current = "complete";
+      setRerouteStatus("evaluating");
+      const rerouteResponse = await triggerAutonomousReroute({
+        caseId: CASE_ID,
+        severity: severityValue,
+        specialty,
+        location: AMBULANCE_LOCATION,
+        patientVitals: vitals
+      });
+      const nextHospital = rerouteResponse.recommendation || rerouteResponse.hospitals?.find((hospital) => hospital.name === "Metro Hospital") || rerouteResponse.hospitals?.[0] || null;
+      setRerouteEvent(rerouteResponse.event);
+      setHospitals(rerouteResponse.hospitals || []);
+      setSelectedHospital(nextHospital);
+      setRerouteStatus("rerouted");
+      if (nextHospital?.id) {
+        const routeResponse = await getRoute(AMBULANCE_LOCATION, nextHospital.id);
+        setRoute(routeResponse.route);
+      }
+    }
     (0, import_react6.useEffect)(() => {
       if (!latestVitals) {
         return;
@@ -24443,6 +24738,16 @@
             const routeResponse = await getRoute(AMBULANCE_LOCATION, preferredHospital.id);
             if (!active) return;
             setRoute(routeResponse.route);
+            if (!autonomousRerouteStartedRef.current && preferredHospital.name?.toLowerCase().includes("aiims")) {
+              autonomousRerouteStartedRef.current = "scheduled";
+              autonomousRerouteTimerRef.current = setTimeout(() => {
+                runAutonomousReroute(latestVitals, severityResponse.severity, specialty).catch((error) => {
+                  console.error("Autonomous reroute failed", error);
+                  setRerouteStatus("monitoring");
+                  autonomousRerouteStartedRef.current = false;
+                });
+              }, 5e3);
+            }
           }
         } catch (error) {
           console.error("Failed to sync case data", error);
@@ -24453,6 +24758,9 @@
         active = false;
       };
     }, [latestVitals]);
+    (0, import_react6.useEffect)(() => {
+      return () => clearTimeout(autonomousRerouteTimerRef.current);
+    }, []);
     async function handleAlertHospital(hospital) {
       try {
         setAlertingHospitalId(hospital.id);
@@ -24497,7 +24805,7 @@
       }
       return null;
     }
-    return /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.root }, /* @__PURE__ */ import_react6.default.createElement(TopBar, null), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.main }, /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.leftCol }, /* @__PURE__ */ import_react6.default.createElement(Vitals, { patientName: "Patient #EMRG-441 \u2014 Ramesh K.", onVitalsChange: setLatestVitals }), /* @__PURE__ */ import_react6.default.createElement("div", { style: { display: "flex", gap: 14 } }, /* @__PURE__ */ import_react6.default.createElement(SurvivalBadge, { survivalProbability }), /* @__PURE__ */ import_react6.default.createElement(CaseSummary, null))), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.centerCol }, /* @__PURE__ */ import_react6.default.createElement(MapView, { selectedHospital, hospitals, route }), /* @__PURE__ */ import_react6.default.createElement(Buttons, { onAction: handleAction })), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.rightCol }, /* @__PURE__ */ import_react6.default.createElement(AIReasoningPanel, { hospital: activeHospital }), /* @__PURE__ */ import_react6.default.createElement(
+    return /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.root }, /* @__PURE__ */ import_react6.default.createElement(TopBar, null), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.main }, /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.leftCol }, /* @__PURE__ */ import_react6.default.createElement(Vitals, { patientName: "Patient #EMRG-441 \u2014 Ramesh K.", onVitalsChange: setLatestVitals }), /* @__PURE__ */ import_react6.default.createElement("div", { style: { display: "flex", gap: 14 } }, /* @__PURE__ */ import_react6.default.createElement(SurvivalBadge, { survivalProbability }), /* @__PURE__ */ import_react6.default.createElement(CaseSummary, null))), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.centerCol }, /* @__PURE__ */ import_react6.default.createElement(MapView, { selectedHospital, hospitals, route }), /* @__PURE__ */ import_react6.default.createElement(AutonomousReroutePanel, { event: rerouteEvent, status: rerouteStatus, destination: activeHospital }), /* @__PURE__ */ import_react6.default.createElement(Buttons, { onAction: handleAction })), /* @__PURE__ */ import_react6.default.createElement("div", { style: appStyles.rightCol }, /* @__PURE__ */ import_react6.default.createElement(AIReasoningPanel, { hospital: activeHospital }), /* @__PURE__ */ import_react6.default.createElement(
       HospitalList,
       {
         hospitals,
@@ -24548,6 +24856,16 @@
     container: { flex: 1.5, background: "#0d1117", border: "1px solid #ffffff10", borderRadius: 14, padding: 16 },
     label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase", marginBottom: 10 },
     row: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "#666", marginBottom: 7, borderBottom: "1px solid #ffffff06", paddingBottom: 6 }
+  };
+  var rerouteStyles = {
+    container: { background: "#0d1117", border: "1px solid #00d4ff55", borderRadius: 12, padding: 16 },
+    header: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 12 },
+    label: { fontSize: 9, letterSpacing: 3, color: "#888", textTransform: "uppercase" },
+    title: { fontSize: 16, fontWeight: 800, color: "#fff", marginTop: 4 },
+    badge: { border: "1px solid", borderRadius: 8, padding: "4px 9px", fontSize: 9, fontWeight: 900, letterSpacing: 1.5 },
+    timeline: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 10 },
+    step: { background: "#ffffff05", border: "1px solid #ffffff10", borderRadius: 8, padding: 10, fontSize: 9, lineHeight: 1.4, fontWeight: 800 },
+    message: { color: "#aaa", fontSize: 10, lineHeight: 1.5, background: "#00000055", border: "1px solid #ffffff0d", borderRadius: 8, padding: 10 }
   };
 
   // index.js

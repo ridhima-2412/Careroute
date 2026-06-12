@@ -408,6 +408,72 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
     return [...vitalsLog];
   }
 
+  function applyAutonomousRerouteScenario() {
+    const updates = [];
+
+    hospitalState.forEach((hospital) => {
+      const normalizedName = String(hospital.name).toLowerCase();
+      let update = null;
+
+      if (normalizedName.includes('aiims')) {
+        update = {
+          status: 'full',
+          icuBeds: 0,
+          ventilators: 0,
+          bedTrendPer15Min: -2,
+        };
+      } else if (normalizedName.includes('metro')) {
+        update = {
+          status: 'available',
+          icuBeds: Math.max(hospital.icuBeds, 9),
+          ventilators: Math.max(hospital.ventilators, 6),
+          bedTrendPer15Min: 2,
+        };
+      } else if (
+        normalizedName.includes('apollo') ||
+        normalizedName.includes('rml') ||
+        normalizedName.includes('fortis') ||
+        normalizedName.includes('city')
+      ) {
+        update = {
+          status: hospital.status === 'full' ? 'full' : 'limited',
+          icuBeds: Math.min(hospital.icuBeds, 1),
+          ventilators: Math.min(hospital.ventilators, 1),
+          bedTrendPer15Min: -1,
+        };
+      }
+
+      if (!update) {
+        return;
+      }
+
+      Object.assign(hospital, update, {
+        lastUpdatedAt: new Date().toISOString(),
+      });
+
+      const payload = {
+        hospitalId: hospital.id,
+        hospitalName: hospital.name,
+        status: hospital.status,
+        icuBeds: hospital.icuBeds,
+        ventilators: hospital.ventilators,
+        updatedAt: hospital.lastUpdatedAt,
+      };
+
+      updates.push(payload);
+      communicationBus.emit(COMMUNICATION_EVENTS.BED_STATUS_CHANGED, payload);
+    });
+
+    return {
+      type: 'autonomous-reroute',
+      trigger: 'AIIMS Trauma Centre reached full critical-care capacity mid-route.',
+      agentAction: 'Re-evaluated hospital scores and rerouted without human input.',
+      preferredHospitalName: 'Metro Hospital',
+      updates,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   return {
     getHospitals,
     recommendHospital,
@@ -416,6 +482,7 @@ function createSimulationEngine(initialHospitals, communicationBus = createCommu
     alertHospitals,
     startBackgroundSimulation,
     getVitalsLog,
+    applyAutonomousRerouteScenario,
     communicationBus,
   };
 }

@@ -520,6 +520,18 @@ router.post('/hospitals/sos', (req, res) => {
   });
 });
 
+router.post('/simulation/autonomous-reroute', (req, res) => {
+  const context = getRecommendationContext(req.body);
+  const event = simulationEngine.applyAutonomousRerouteScenario();
+  const recommendation = buildRecommendationResponse(context);
+
+  res.status(200).json({
+    success: true,
+    event,
+    ...recommendation,
+  });
+});
+
 router.post('/alert-hospitals', (req, res) => {
   const context = getRecommendationContext(req.body);
   const { hospitalIds } = req.body;
