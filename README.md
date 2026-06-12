@@ -1,130 +1,142 @@
-# Careroute
-# 🚑 Smart Ambulance Decision-Support System
+# CareRoute 🚑
+### Smart Ambulance Decision-Support System
 
-## 📌 Overview
-
-The **Smart Ambulance Decision-Support System** recommends the most suitable hospital during emergencies using intelligent decision logic instead of simply choosing the nearest one.
+> Recommending the most suitable hospital during emergencies — not just the nearest one.
 
 ---
 
-## 🏗️ Project Structure & Team Distribution
+## What is CareRoute?
 
-```plaintext
+Most ambulances go to the nearest hospital. CareRoute goes to the **right** one.
+
+It evaluates every nearby hospital in real time based on patient vitals, ICU availability, specialist match, live traffic, and predicted bed availability — then recommends the best option with a full AI-generated explanation of why.
+
+---
+
+## Features
+
+- 🧠 **AI Reasoning Engine** — Explains why a hospital was selected and why others were rejected
+- 🔄 **Autonomous Rerouting** — Detects mid-route capacity changes and switches destination automatically
+- 🎙️ **Voice-Captured Vitals** — Paramedic speaks vitals hands-free, system transcribes in real time
+- 📍 **Distance & travel-time calculation** — Live traffic-aware routing
+- 📊 **Predictive bed availability** — Forecasts capacity 15 minutes ahead
+- 📡 **Ambulance-to-hospital communication** — Pre-alert sending before arrival
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React.js |
+| Backend | Node.js, Express |
+| AI Reasoning | OpenAI API |
+| Voice Transcription | OpenAI Whisper (gpt-4o-mini-transcribe) |
+| Database | JSON (simulation) |
+| Communication | EventEmitter |
+
+---
+
+## Project Structure
+
+```
 smart-ambulance/
 │
-├── frontend/                     👤 Person 1 (UI Developer)
+├── frontend/                  # React dashboard UI
 │   ├── components/
-│   │   ├── Vitals.js
-│   │   ├── HospitalList.js
-│   │   ├── MapView.js
-│   │   └── Buttons.js
+│   │   ├── Vitals.js          # Patient vitals display
+│   │   ├── HospitalList.js    # Ranked hospital recommendations
+│   │   ├── MapView.js         # Live route map
+│   │   └── Buttons.js         # Emergency controls
 │   ├── App.js
-│   └── api.js                   👤 Person 5 (Integration)
+│   └── api.js                 # API integration layer
 │
-├── backend/                     👤 Person 2 (Backend Developer)
+├── backend/                   # Node.js server
 │   ├── server.js
 │   ├── routes.js
-│   └── simulation.js            👤 Person 5 (Integration support)
+│   └── simulation.js          # Hospital capacity simulation
 │
-├── logic/                       👤 Person 3 (Logic / ML)
-│   └── recommendation.js
+├── logic/
+│   └── recommendation.js      # Scoring & ranking engine
 │
-├── database/                    👤 Person 4 (Data)
-│   └── hospitals.json
+├── database/
+│   └── hospitals.json         # Hospital dataset
 │
-├── docs/                        👤 (Optional – any member)
-│   └── architecture.md
-│
-├── README.md
-└── package.json
+└── README.md
 ```
 
 ---
 
-## 🎯 Key Features
+## Setup & Installation
 
-* 🧠 Severity-based decision engine
-* 🏥 Smart hospital recommendation
-* 📍 Distance & travel-time calculation
-* 🔄 Real-time simulation of hospital capacity
-* 📊 Predictive bed availability
-* 📡 Communication between ambulance & hospital
-* 🎙️ Voice-assisted vitals capture with automatic form filling
-
----
-
-## 🛠️ Tech Stack
-
-* **Frontend:** React.js
-* **Backend:** Node.js, Express
-* **Database:** JSON (simulation)
-* **Logic Layer:** Rule-based ML scoring system
-* **Communication:** EventEmitter
-
----
-
-## ⚙️ Setup Instructions
-
+### 1. Install dependencies
 ```bash
-1️⃣ Install dependencies
 npm install
-2️⃣ Run Backend (Terminal 1)
+```
+
+### 2. Start the backend (Terminal 1)
+```bash
 cd backend
 node server.js
+```
+Backend runs at: `http://localhost:5000`
 
-Backend runs on:
- http://localhost:5000
-
-3️⃣ Run Frontend (Terminal 2)
+### 3. Start the frontend (Terminal 2)
+```bash
 cd frontend
 npm install
 npm start
-
-Frontend runs on :
-  http://localhost:8000
 ```
-
-### Voice Input Setup
-
-Voice input works in **demo mode by default**, so no API key is required for a
-hackathon presentation. The browser records a short clip, the backend returns a
-sample emergency transcript, and the parsed values fill the vitals dashboard.
-
-For real speech-to-text, add an OpenAI API key before starting the backend:
-
-```powershell
-$env:OPENAI_API_KEY="your-api-key"
-npm run backend
-```
-
-Optional voice environment variables:
-
-```powershell
-# Force the presentation-safe mock even when an API key exists
-$env:VOICE_TRANSCRIPTION_MODE="mock"
-
-# Override the mock sentence used by the demo
-$env:MOCK_VOICE_TRANSCRIPT="Patient is unconscious, heart rate 130, oxygen level 82, blood pressure 90 over 60, temperature 101, possible cardiac emergency."
-
-# Override the transcription model
-$env:OPENAI_TRANSCRIPTION_MODEL="gpt-4o-mini-transcribe"
-```
-
-Allow microphone permission when prompted. Microphone capture requires
-`localhost` or an HTTPS deployment in modern browsers. Click **Speak Vitals**,
-dictate the patient status, then click again to stop (or wait 10 seconds).
-
-The backend extracts heart rate, SpO2, blood pressure, respiratory rate,
-temperature, consciousness/GCS, and the suspected emergency type. Fahrenheit
-temperatures such as `101` are converted to Celsius for the dashboard.
-
+Frontend runs at: `http://localhost:8000`
 
 ---
 
-## 🧪 API Example
+## Voice Input Setup
 
-### POST `/api/hospitals/recommend`
+Voice input runs in **demo mode by default** — no API key required for presentations. The browser records a short clip, the backend returns a sample transcript, and parsed values auto-fill the vitals dashboard.
 
+**For real speech-to-text**, create a `.env` file in the root directory:
+```
+OPENAI_API_KEY=your_api_key_here
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+```
+
+**Optional environment variables:**
+```bash
+# Force demo mode even when API key exists
+VOICE_TRANSCRIPTION_MODE=mock
+
+# Override the demo transcript
+MOCK_VOICE_TRANSCRIPT="Patient is unconscious, heart rate 130, oxygen level 82, blood pressure 90 over 60, temperature 101, possible cardiac emergency."
+```
+
+> **Note:** Microphone access requires `localhost` or an HTTPS deployment in modern browsers.
+
+**How to use:** Click **Start Voice Capture** → speak patient vitals → click **Stop and Process** (or wait 10 seconds). Recognized values update the dashboard automatically.
+
+---
+
+## How the Recommendation Engine Works
+
+Each hospital is scored based on:
+
+- ICU and ventilator availability
+- Specialist match for the patient's condition
+- Distance and travel time
+- Live traffic conditions
+- Predicted bed availability (next 15 minutes)
+- Current emergency load
+
+The highest-scoring hospital is recommended with a full explanation. Rejected hospitals show specific reasons — full capacity, missing specialty, high traffic, or lower suitability score.
+
+---
+
+## API Reference
+
+**Recommend a hospital:**
+```
+POST /api/hospitals/recommend
+```
 ```json
 {
   "severity": "CRITICAL",
@@ -135,91 +147,17 @@ temperatures such as `101` are converted to Celsius for the dashboard.
   }
 }
 ```
----
-
-## 🧠 How It Works
-
-The system evaluates hospitals based on:
-
-* ICU & ventilator availability
-* Specialist availability
-* Distance & travel time
-* Predicted future capacity
-
-Each hospital is scored and ranked, and the best one is selected.
 
 ---
 
-## 🎤 Hackathon Pitch
+## Adding Your Own Hospital Data
 
-> “We built a smart ambulance routing system that uses a severity-aware decision engine to recommend the most suitable hospital based on real-time resources, specialties, and travel constraints.”
-
----
-
-## 🚀 Future Scope
-
-* Google Maps integration
-* Real-time hospital APIs
-* ML model-based prediction
-* Live tracking dashboard
-
----
-
-## 📜 License
-
-For academic and hackathon use only.
-
----
-
-## CareRoute Emergency Dashboard
-
-The frontend is designed as a professional ambulance operations dashboard
-focused on decisions that matter during transport:
-
-* **Patient condition:** risk level, survival outlook, required specialty, and large-format vital readings.
-* **Voice vitals:** microphone capture, transcription confirmation, and automatic vital updates.
-* **Recommended destination:** best hospital, ETA, score, ICU beds, ventilators, and emergency load.
-* **Decision explanation:** human-readable selection and rejection reasons.
-* **Live route:** destination, traffic, distance, and capacity-aware rerouting.
-* **Hospital communication:** receiving-alert status and continuous capacity monitoring.
-
-### Voice Vitals
-
-Click **Start Voice Capture**, speak the patient condition and vitals, then
-click **Stop and Process** or wait ten seconds. The transcript is shown for
-confirmation and recognized values update the dashboard.
-
-Microphone access requires `http://localhost` or an HTTPS deployment. For real
-transcription, add this to the root `.env` file:
-
-```env
-OPENAI_API_KEY=your_api_key_here
-OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
-```
-
-Without an API key, the backend uses presentation-safe demo transcription.
-
-### Recommendation Explanation
-
-CareRoute ranks hospitals using clinical severity, specialty match,
-critical-care resources, predicted availability, travel distance, traffic, and
-hospital load. The dashboard explains why the selected hospital is preferred
-and why alternatives were deprioritized, such as:
-
-* No ICU bed currently available.
-* No ventilator currently available.
-* Required emergency specialty not confirmed.
-* High traffic or longer effective transfer time.
-* Lower overall suitability score for the current patient.
-
-### Hospital Dataset Integration
-
-Hospital records are loaded from `database/hospitals.json`. A record can use:
+Edit `database/hospitals.json`. Each record should follow this format:
 
 ```json
 {
   "name": "City Heart Hospital",
-  "location": { "lat": 28.61, "lng": 77.2 },
+  "location": { "lat": 28.61, "lng": 77.20 },
   "icu_total": 20,
   "icu_available": 5,
   "ventilators_total": 10,
@@ -234,13 +172,25 @@ Hospital records are loaded from `database/hospitals.json`. A record can use:
 }
 ```
 
-To integrate another dataset:
+Restart the backend after updating the file.
 
-1. Normalize resource counts to numbers.
-2. Add `location.lat` and `location.lng` when coordinates are available.
-3. Use `available`, `limited`, or `full` for `status`.
-4. Map specialist counts under `specialists`.
-5. Restart the backend after changing the JSON file.
+---
 
-The backend supplies fallback coordinates when a record has no `location`
-field, so incomplete hackathon datasets remain demoable.
+## Future Scope
+
+- Google Maps / real routing API integration
+- Live hospital API connections
+- Voice-to-vitals automatic dashboard sync
+- Wearable & IoT vitals integration
+- Multi-city deployment
+- Ayushman Bharat Digital Mission integration
+
+---
+
+## Team
+
+**AlgoAllies** — Built for hackathon, designed for real-world impact.
+
+---
+
+*For academic and hackathon use only.*
