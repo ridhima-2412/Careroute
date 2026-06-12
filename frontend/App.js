@@ -36,7 +36,7 @@ export default function App() {
   const [severity, setSeverity] = useState("STABLE");
   const [survivalProbability, setSurvivalProbability] = useState(87);
   const [route, setRoute] = useState(null);
-  const [loadingState, setLoadingState] = useState("Waiting for patient vitals");
+  const [loadingState, setLoadingState] = useState("");
   const [dashboardError, setDashboardError] = useState("");
   const [alertStatus, setAlertStatus] = useState("idle");
   const [alertingHospitalId, setAlertingHospitalId] = useState(null);
@@ -218,25 +218,26 @@ export default function App() {
         {dashboardError && <div className="error-state dashboard-error">{dashboardError}</div>}
         {loadingState && <div className="loading-state dashboard-loading">{loadingState}...</div>}
 
-        <div className="dashboard-grid">
-          <div className="dashboard-column">
+        <div className="dashboard-layout">
+          <div className="dashboard-summary">
             <PatientSummaryCard
               severity={severity}
               specialty={specialty}
               survivalProbability={survivalProbability}
+              hospital={activeHospital}
+              route={route}
+              alertStatus={alertStatus}
             />
+          </div>
+
+          <div className="dashboard-primary">
             <Vitals
               patientName="Patient #EMRG-441 - Ramesh K."
               onVitalsChange={setLatestVitals}
             />
-            <EmergencyStatusCard
-              hospital={activeHospital}
-              alertStatus={alertStatus}
-              rerouteStatus={rerouteStatus}
-            />
           </div>
 
-          <div className="dashboard-column">
+          <div className="dashboard-secondary">
             <RecommendationReason
               hospital={activeHospital}
               alternatives={alternatives}
@@ -245,15 +246,23 @@ export default function App() {
               rerouteEvent={rerouteEvent}
             />
             <MapView selectedHospital={activeHospital} hospitals={hospitals} route={route} />
+          </div>
+
+          <div className="dashboard-controls">
             <Buttons
               onAction={handleAction}
               disabled={!latestVitals}
               alertStatus={alertStatus}
               destinationName={activeHospital?.name}
             />
+            <EmergencyStatusCard
+              hospital={activeHospital}
+              alertStatus={alertStatus}
+              rerouteStatus={rerouteStatus}
+            />
           </div>
 
-          <div className="dashboard-column">
+          <div className="dashboard-hospitals">
             <HospitalList
               hospitals={hospitals}
               selectedHospitalId={activeHospital?.id}

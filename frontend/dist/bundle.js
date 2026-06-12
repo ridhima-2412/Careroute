@@ -23888,9 +23888,16 @@
 
   // components/PatientSummaryCard.js
   var import_react6 = __toESM(require_react());
-  function PatientSummaryCard({ severity, specialty, survivalProbability }) {
+  function PatientSummaryCard({
+    severity,
+    specialty,
+    survivalProbability,
+    hospital,
+    route,
+    alertStatus
+  }) {
     const riskCopy = severity === "CRITICAL" ? "Immediate critical-care placement required" : severity === "MODERATE" ? "Deterioration risk requires continuous monitoring" : "Patient condition currently stable";
-    return /* @__PURE__ */ import_react6.default.createElement("section", { className: "panel" }, /* @__PURE__ */ import_react6.default.createElement("div", { className: "panel-header" }, /* @__PURE__ */ import_react6.default.createElement("div", null, /* @__PURE__ */ import_react6.default.createElement("div", { className: "eyebrow" }, "Patient condition"), /* @__PURE__ */ import_react6.default.createElement("h2", { className: "panel-title" }, "Ramesh K., 52 / Male"), /* @__PURE__ */ import_react6.default.createElement("p", { className: "panel-copy" }, riskCopy)), /* @__PURE__ */ import_react6.default.createElement("span", { className: `status-pill ${severity === "CRITICAL" ? "status-critical" : severity === "MODERATE" ? "status-warning" : "status-success"}` }, severity, " RISK")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "metric-grid" }, /* @__PURE__ */ import_react6.default.createElement("div", { className: "metric-card" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Survival outlook"), /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-value" }, survivalProbability), /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-unit" }, "%")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "metric-card" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Required specialty"), /* @__PURE__ */ import_react6.default.createElement("span", { style: { fontSize: 20, fontWeight: 800, textTransform: "capitalize" } }, specialty)), /* @__PURE__ */ import_react6.default.createElement("div", { className: "metric-card" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Crew"), /* @__PURE__ */ import_react6.default.createElement("span", { style: { fontSize: 17, fontWeight: 800 } }, "Dr. Mehta + EMT Raza"))));
+    return /* @__PURE__ */ import_react6.default.createElement("section", { className: "case-overview" }, /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-overview-patient" }, /* @__PURE__ */ import_react6.default.createElement("div", null, /* @__PURE__ */ import_react6.default.createElement("div", { className: "eyebrow" }, "Patient condition"), /* @__PURE__ */ import_react6.default.createElement("h2", { className: "case-overview-title" }, "Ramesh K."), /* @__PURE__ */ import_react6.default.createElement("p", { className: "panel-copy" }, riskCopy)), /* @__PURE__ */ import_react6.default.createElement("span", { className: `status-pill ${severity === "CRITICAL" ? "status-critical" : severity === "MODERATE" ? "status-warning" : "status-success"}` }, severity, " RISK")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-overview-metrics" }, /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Patient"), /* @__PURE__ */ import_react6.default.createElement("strong", null, "52 / Male")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Survival outlook"), /* @__PURE__ */ import_react6.default.createElement("strong", null, survivalProbability, "%")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Required specialty"), /* @__PURE__ */ import_react6.default.createElement("strong", { style: { textTransform: "capitalize" } }, specialty)), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Destination"), /* @__PURE__ */ import_react6.default.createElement("strong", null, hospital?.name || "Evaluating")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric case-metric-accent" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "ETA"), /* @__PURE__ */ import_react6.default.createElement("strong", null, route?.eta || hospital?.eta || "--")), /* @__PURE__ */ import_react6.default.createElement("div", { className: "case-metric" }, /* @__PURE__ */ import_react6.default.createElement("span", { className: "metric-label" }, "Receiving team"), /* @__PURE__ */ import_react6.default.createElement("strong", { className: alertStatus === "sent" ? "text-success" : "text-warning" }, alertStatus === "sent" ? "Alerted" : "Pending alert"))));
   }
 
   // components/RecommendationReason.js
@@ -24352,7 +24359,7 @@
     const [severity, setSeverity] = (0, import_react9.useState)("STABLE");
     const [survivalProbability, setSurvivalProbability] = (0, import_react9.useState)(87);
     const [route, setRoute] = (0, import_react9.useState)(null);
-    const [loadingState, setLoadingState] = (0, import_react9.useState)("Waiting for patient vitals");
+    const [loadingState, setLoadingState] = (0, import_react9.useState)("");
     const [dashboardError, setDashboardError] = (0, import_react9.useState)("");
     const [alertStatus, setAlertStatus] = (0, import_react9.useState)("idle");
     const [alertingHospitalId, setAlertingHospitalId] = (0, import_react9.useState)(null);
@@ -24502,27 +24509,23 @@
       }
       return { message: "Select a destination hospital before sending an alert." };
     }
-    return /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-shell" }, /* @__PURE__ */ import_react9.default.createElement(DashboardHeader, { caseId: CASE_ID, severity }), /* @__PURE__ */ import_react9.default.createElement("main", { className: "dashboard-main" }, dashboardError && /* @__PURE__ */ import_react9.default.createElement("div", { className: "error-state dashboard-error" }, dashboardError), loadingState && /* @__PURE__ */ import_react9.default.createElement("div", { className: "loading-state dashboard-loading" }, loadingState, "..."), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-grid" }, /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-column" }, /* @__PURE__ */ import_react9.default.createElement(
+    return /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-shell" }, /* @__PURE__ */ import_react9.default.createElement(DashboardHeader, { caseId: CASE_ID, severity }), /* @__PURE__ */ import_react9.default.createElement("main", { className: "dashboard-main" }, dashboardError && /* @__PURE__ */ import_react9.default.createElement("div", { className: "error-state dashboard-error" }, dashboardError), loadingState && /* @__PURE__ */ import_react9.default.createElement("div", { className: "loading-state dashboard-loading" }, loadingState, "..."), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-layout" }, /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-summary" }, /* @__PURE__ */ import_react9.default.createElement(
       PatientSummaryCard,
       {
         severity,
         specialty,
-        survivalProbability
+        survivalProbability,
+        hospital: activeHospital,
+        route,
+        alertStatus
       }
-    ), /* @__PURE__ */ import_react9.default.createElement(
+    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-primary" }, /* @__PURE__ */ import_react9.default.createElement(
       Vitals,
       {
         patientName: "Patient #EMRG-441 - Ramesh K.",
         onVitalsChange: setLatestVitals
       }
-    ), /* @__PURE__ */ import_react9.default.createElement(
-      EmergencyStatusCard,
-      {
-        hospital: activeHospital,
-        alertStatus,
-        rerouteStatus
-      }
-    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-column" }, /* @__PURE__ */ import_react9.default.createElement(
+    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-secondary" }, /* @__PURE__ */ import_react9.default.createElement(
       RecommendationReason,
       {
         hospital: activeHospital,
@@ -24531,7 +24534,7 @@
         severity,
         rerouteEvent
       }
-    ), /* @__PURE__ */ import_react9.default.createElement(MapView, { selectedHospital: activeHospital, hospitals, route }), /* @__PURE__ */ import_react9.default.createElement(
+    ), /* @__PURE__ */ import_react9.default.createElement(MapView, { selectedHospital: activeHospital, hospitals, route })), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-controls" }, /* @__PURE__ */ import_react9.default.createElement(
       Buttons,
       {
         onAction: handleAction,
@@ -24539,7 +24542,14 @@
         alertStatus,
         destinationName: activeHospital?.name
       }
-    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-column" }, /* @__PURE__ */ import_react9.default.createElement(
+    ), /* @__PURE__ */ import_react9.default.createElement(
+      EmergencyStatusCard,
+      {
+        hospital: activeHospital,
+        alertStatus,
+        rerouteStatus
+      }
+    )), /* @__PURE__ */ import_react9.default.createElement("div", { className: "dashboard-hospitals" }, /* @__PURE__ */ import_react9.default.createElement(
       HospitalList,
       {
         hospitals,

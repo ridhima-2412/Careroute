@@ -1,6 +1,13 @@
 import React from "react";
 
-export default function PatientSummaryCard({ severity, specialty, survivalProbability }) {
+export default function PatientSummaryCard({
+  severity,
+  specialty,
+  survivalProbability,
+  hospital,
+  route,
+  alertStatus,
+}) {
   const riskCopy =
     severity === "CRITICAL"
       ? "Immediate critical-care placement required"
@@ -9,11 +16,11 @@ export default function PatientSummaryCard({ severity, specialty, survivalProbab
         : "Patient condition currently stable";
 
   return (
-    <section className="panel">
-      <div className="panel-header">
+    <section className="case-overview">
+      <div className="case-overview-patient">
         <div>
           <div className="eyebrow">Patient condition</div>
-          <h2 className="panel-title">Ramesh K., 52 / Male</h2>
+          <h2 className="case-overview-title">Ramesh K.</h2>
           <p className="panel-copy">{riskCopy}</p>
         </div>
         <span className={`status-pill ${
@@ -27,21 +34,32 @@ export default function PatientSummaryCard({ severity, specialty, survivalProbab
         </span>
       </div>
 
-      <div className="metric-grid">
-        <div className="metric-card">
+      <div className="case-overview-metrics">
+        <div className="case-metric">
+          <span className="metric-label">Patient</span>
+          <strong>52 / Male</strong>
+        </div>
+        <div className="case-metric">
           <span className="metric-label">Survival outlook</span>
-          <span className="metric-value">{survivalProbability}</span>
-          <span className="metric-unit">%</span>
+          <strong>{survivalProbability}%</strong>
         </div>
-        <div className="metric-card">
+        <div className="case-metric">
           <span className="metric-label">Required specialty</span>
-          <span style={{ fontSize: 20, fontWeight: 800, textTransform: "capitalize" }}>
-            {specialty}
-          </span>
+          <strong style={{ textTransform: "capitalize" }}>{specialty}</strong>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">Crew</span>
-          <span style={{ fontSize: 17, fontWeight: 800 }}>Dr. Mehta + EMT Raza</span>
+        <div className="case-metric">
+          <span className="metric-label">Destination</span>
+          <strong>{hospital?.name || "Evaluating"}</strong>
+        </div>
+        <div className="case-metric case-metric-accent">
+          <span className="metric-label">ETA</span>
+          <strong>{route?.eta || hospital?.eta || "--"}</strong>
+        </div>
+        <div className="case-metric">
+          <span className="metric-label">Receiving team</span>
+          <strong className={alertStatus === "sent" ? "text-success" : "text-warning"}>
+            {alertStatus === "sent" ? "Alerted" : "Pending alert"}
+          </strong>
         </div>
       </div>
     </section>
