@@ -1,7 +1,7 @@
 // api.js — Frontend API service layer
 // Connects to Node.js backend (or uses mock data in prototype mode)
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "http://127.0.0.1:59290";
 const MOCK_MODE = false;
 
 // ──────────────────────────────────────────

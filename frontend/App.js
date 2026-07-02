@@ -94,7 +94,7 @@ export default function App() {
       return { preferredHospital, severityResponse, requiredSpecialty };
     } catch (error) {
       console.error("Failed to synchronize emergency dashboard", error);
-      setDashboardError("Live hospital data could not be loaded. Confirm that the backend is running on port 5000.");
+      setDashboardError("Live hospital data could not be loaded. Confirm that the backend is running on port 59290.");
       setLoadingState("");
       return null;
     }

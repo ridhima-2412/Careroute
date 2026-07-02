@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: careroute-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: careroute-frontend
+  template:
+    metadata:
+      labels:
+        app: careroute-frontend
+    spec:
+      containers:
+        - name: careroute-frontend
+          image: careroute-frontend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000

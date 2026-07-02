@@ -23936,7 +23936,7 @@
   var import_react8 = __toESM(require_react());
 
   // api.js
-  var BASE_URL = "http://localhost:5000/api";
+  var BASE_URL = "http://127.0.0.1:59290/api";
   var MOCK_MODE = false;
   var MOCK_HOSPITALS = [
     {
@@ -24409,7 +24409,7 @@
         return { preferredHospital, severityResponse, requiredSpecialty };
       } catch (error) {
         console.error("Failed to synchronize emergency dashboard", error);
-        setDashboardError("Live hospital data could not be loaded. Confirm that the backend is running on port 5000.");
+        setDashboardError("Live hospital data could not be loaded. Confirm that the backend is running on port 59290.");
         setLoadingState("");
         return null;
       }
